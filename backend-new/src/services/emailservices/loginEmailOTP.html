@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Login Verification - Turant Logistics</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        /* Reset styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        /* Media queries for mobile */
+        @media only screen and (max-width: 600px) {
+            .container {
+                width: 100% !important;
+                margin: 0 !important;
+            }
+            .content-wrapper {
+                padding: 20px !important;
+            }
+            .logo {
+                font-size: 24px !important;
+            }
+            .otp-code {
+                font-size: 32px !important;
+                letter-spacing: 6px !important;
+                padding: 15px 25px !important;
+            }
+            .device-info {
+                font-size: 12px !important;
+            }
+        }
+    </style>
+</head>
+
+<body style="margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; background: linear-gradient(135deg, #2d3748 0%, #4a5568 50%, #2d3748 100%); min-height: 100vh;">
+    
+    <!-- Outer Container -->
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #2d3748 0%, #4a5568 50%, #2d3748 100%); min-height: 100vh;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                
+                <!-- Main Email Container -->
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" class="container" style="max-width: 600px; width: 100%; background: #ffffff; border-radius: 20px; box-shadow: 0 25px 50px rgba(0,0,0,0.25); overflow: hidden;">
+                    
+                    <!-- Header Section -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #319795 0%, #2c7a7b 100%); padding: 40px 30px; text-align: center; position: relative;">
+                            <!-- Background Pattern -->
+                            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: radial-gradient(circle at 20% 80%, rgba(255,255,255,0.1) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(255,255,255,0.1) 0%, transparent 50%);"></div>
+                            
+                            <!-- Logo -->
+                            <div style="position: relative; z-index: 1; margin-bottom: 20px;">
+                                <div class="logo" style="display: inline-flex; align-items: center; justify-content: center; width: 80px; height: 80px; background: rgba(255,255,255,0.2); border-radius: 50%; margin-bottom: 15px; backdrop-filter: blur(10px);">
+                                    <div style="width: 40px; height: 40px; background: #ffffff; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                                        <div style="width: 24px; height: 24px; background: linear-gradient(135deg, #319795 0%, #2c7a7b 100%); border-radius: 4px; position: relative;">
+                                            <div style="position: absolute; top: 6px; left: 6px; width: 12px; height: 12px; background: #ffffff; border-radius: 2px;"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <h1 style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0; letter-spacing: -0.5px;">Turant Logistics</h1>
+                                <p style="color: rgba(255,255,255,0.9); font-size: 14px; margin: 5px 0 0 0; font-weight: 400;">Secure Login Verification</p>
+                            </div>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content Section -->
+                    <tr>
+                        <td class="content-wrapper" style="padding: 50px 40px;">
+                            
+                            <!-- Welcome Back Message -->
+                            <div style="text-align: center; margin-bottom: 40px;">
+                                <div style="display: inline-flex; align-items: center; justify-content: center; width: 70px; height: 70px; background: linear-gradient(135deg, #e6fffa 0%, #b2f5ea 100%); border-radius: 50%; margin-bottom: 20px;">
+                                    <div style="color: #319795; font-size: 32px; font-weight: 600;">🔐</div>
+                                </div>
+                                <h2 style="color: #1a202c; font-size: 28px; font-weight: 600; margin: 0 0 15px 0; line-height: 1.3;">Welcome Back!</h2>
+                                <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin: 0;">Hi <strong style="color: #1a202c;">[userName]</strong>,</p>
+                                <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin: 15px 0 0 0;">We received a login request for your account. Please use the verification code below to continue.</p>
+                            </div>
+                            
+                            <!-- Login Alert Section -->
+                            <div style="background: linear-gradient(135deg, #fed7d7 0%, #feb2b2 100%); border: 2px solid #fc8181; border-radius: 16px; padding: 25px; text-align: center; margin: 30px 0;">
+                                <div style="margin-bottom: 15px;">
+                                    <div style="display: inline-flex; align-items: center; justify-content: center; width: 50px; height: 50px; background: #e53e3e; border-radius: 50%; margin-bottom: 10px;">
+                                        <div style="color: #ffffff; font-size: 20px; font-weight: 600;">⚠️</div>
+                                    </div>
+                                </div>
+                                <h3 style="color: #742a2a; font-size: 16px; font-weight: 600; margin: 0 0 10px 0;">New Login Attempt Detected</h3>
+                                <p style="color: #742a2a; font-size: 14px; line-height: 1.5; margin: 0;">If this wasn't you, please contact our support team immediately and change your password.</p>
+                            </div>
+                            
+                            <!-- OTP Section -->
+                            <div style="background: linear-gradient(135deg, #e6fffa 0%, #b2f5ea 100%); border: 3px solid #319795; border-radius: 16px; padding: 35px; text-align: center; margin: 30px 0;">
+                                <div style="margin-bottom: 20px;">
+                                    <div style="display: inline-flex; align-items: center; justify-content: center; width: 60px; height: 60px; background: linear-gradient(135deg, #319795 0%, #2c7a7b 100%); border-radius: 50%; margin-bottom: 15px;">
+                                        <div style="color: #ffffff; font-size: 24px; font-weight: 600;">🔑</div>
+                                    </div>
+                                </div>
+                                <p style="color: #1a202c; font-size: 16px; font-weight: 500; margin: 0 0 20px 0;">Your login verification code:</p>
+                                <div class="otp-code" style="display: inline-block; background: #ffffff; border: 3px solid #319795; border-radius: 12px; padding: 20px 30px; font-size: 38px; font-weight: 700; color: #319795; letter-spacing: 8px; font-family: 'Courier New', monospace; box-shadow: 0 10px 20px rgba(49, 151, 149, 0.2);">
+                                    [OTP]
+                                </div>
+                                <p style="color: #4a5568; font-size: 14px; margin: 20px 0 0 0; line-height: 1.5;">This code will expire in <strong style="color: #1a202c;">5 minutes</strong></p>
+                            </div>
+                            
+                            <!-- Device Information -->
+                            <div style="background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin: 30px 0;">
+                                <h3 style="color: #1a202c; font-size: 16px; font-weight: 600; margin: 0 0 15px 0; display: flex; align-items: center;">
+                                    <span style="margin-right: 10px;">📱</span> Login Attempt Details
+                                </h3>
+                                <div class="device-info" style="color: #4a5568; font-size: 14px; line-height: 1.6;">
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
+                                        <span style="font-weight: 500;">Time:</span>
+                                        <span>[timestamp]</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
+                                        <span style="font-weight: 500;">IP Address:</span>
+                                        <span>[ipAddress]</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px; padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
+                                        <span style="font-weight: 500;">Device:</span>
+                                        <span>[deviceInfo]</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Action Buttons -->
+                            <div style="text-align: center; margin: 35px 0;">
+                                <div style="display: inline-flex; gap: 15px; flex-wrap: wrap; justify-content: center;">
+                                    <a href="#" style="display: inline-block; padding: 12px 25px; background: linear-gradient(135deg, #319795 0%, #2c7a7b 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; box-shadow: 0 4px 12px rgba(49, 151, 149, 0.3);">✅ This was me</a>
+                                    <a href="#" style="display: inline-block; padding: 12px 25px; background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; box-shadow: 0 4px 12px rgba(229, 62, 62, 0.3);">🚨 Not me - Secure my account</a>
+                                </div>
+                            </div>
+                            
+                            <!-- Security Tips -->
+                            <div style="background: #fffaf0; border-left: 4px solid #f6ad55; border-radius: 8px; padding: 20px; margin: 30px 0;">
+                                <h3 style="color: #1a202c; font-size: 16px; font-weight: 600; margin: 0 0 10px 0;">🛡️ Security Tips:</h3>
+                                <ul style="color: #4a5568; font-size: 14px; line-height: 1.6; margin: 0; padding-left: 20px;">
+                                    <li style="margin-bottom: 8px;">Never share your OTP with anyone</li>
+                                    <li style="margin-bottom: 8px;">We'll never ask for your OTP via phone or email</li>
+                                    <li style="margin-bottom: 8px;">Always log out from shared devices</li>
+                                    <li>Use strong, unique passwords for your account</li>
+                                </ul>
+                            </div>
+                            
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer Section -->
+                    <tr>
+                        <td style="background: #f7fafc; padding: 30px 40px; border-top: 1px solid #e2e8f0;">
+                            
+                            <!-- Emergency Contact -->
+                            <div style="background: #fed7d7; border: 1px solid #fc8181; border-radius: 8px; padding: 20px; margin-bottom: 25px; text-align: center;">
+                                <h4 style="color: #742a2a; font-size: 14px; font-weight: 600; margin: 0 0 8px 0;">🚨 Suspicious Activity?</h4>
+                                <p style="color: #742a2a; font-size: 13px; margin: 0 0 10px 0;">If you didn't request this login, contact us immediately:</p>
+                                <a href="mailto:security@turantlogistics.com" style="color: #e53e3e; text-decoration: none; font-weight: 600; font-size: 13px;">security@turantlogistics.com</a>
+                            </div>
+                            
+                            <!-- Help Section -->
+                            <div style="text-align: center; margin-bottom: 25px;">
+                                <p style="color: #4a5568; font-size: 14px; margin: 0 0 15px 0;">Need help? We're here for you!</p>
+                                <div style="display: inline-flex; gap: 20px; flex-wrap: wrap; justify-content: center;">
+                                    <a href="mailto:support@turantlogistics.com" style="color: #319795; text-decoration: none; font-size: 14px; font-weight: 500;">📧 support@turantlogistics.com</a>
+                                    <a href="tel:+919876543210" style="color: #319795; text-decoration: none; font-size: 14px; font-weight: 500;">📞 +91 98765 43210</a>
+                                </div>
+                            </div>
+                            
+                            <!-- Social Links -->
+                            <div style="text-align: center; margin-bottom: 20px;">
+                                <div style="display: inline-flex; gap: 15px;">
+                                    <a href="#" style="display: inline-block; width: 40px; height: 40px; background: #1877f2; border-radius: 50%; text-decoration: none; color: #ffffff; text-align: center; line-height: 40px; font-weight: 600;">f</a>
+                                    <a href="#" style="display: inline-block; width: 40px; height: 40px; background: #1da1f2; border-radius: 50%; text-decoration: none; color: #ffffff; text-align: center; line-height: 40px; font-weight: 600;">t</a>
+                                    <a href="#" style="display: inline-block; width: 40px; height: 40px; background: #0077b5; border-radius: 50%; text-decoration: none; color: #ffffff; text-align: center; line-height: 40px; font-weight: 600;">in</a>
+                                    <a href="#" style="display: inline-block; width: 40px; height: 40px; background: #ff0000; border-radius: 50%; text-decoration: none; color: #ffffff; text-align: center; line-height: 40px; font-weight: 600;">yt</a>
+                                </div>
+                            </div>
+                            
+                            <!-- Footer Text -->
+                            <div style="text-align: center; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+                                <p style="color: #718096; font-size: 12px; line-height: 1.5; margin: 0;">
+                                    © 2025 Turant Logistics. All rights reserved.<br>
+                                    123 Logistics Street, Transport City, TC 12345, India
+                                </p>
+                                <p style="color: #718096; font-size: 11px; margin: 10px 0 0 0;">
+                                    This login attempt was made for [email]. If this wasn't you, please secure your account immediately.
+                                </p>
+                            </div>
+                            
+                        </td>
+                    </tr>
+                    
+                </table>
+                
+            </td>
+        </tr>
+    </table>
+    
+</body>
+
+</html>
