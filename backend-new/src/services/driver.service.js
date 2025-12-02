@@ -5,6 +5,7 @@ const { filterDriversByRadius } = require("../utils/locationUtils");
 const { cloudinary } = require("../config/cloudinaryConfig");
 const KYCModel = require("../models/kyc.model");
 const { UpdateOrderStatusWithDriver } = require("./order.service");
+const { GetKycDetails } = require("./kyc.service");
 
 const GetDriverList = async (payload) => {
   try {
@@ -77,7 +78,7 @@ const GetDriverDetails = async ({ driverId, userId }) => {
     const user = await User.find({
       userId: driver.userId,
     });
-    const kycData = await requestKYCData(driver.userId);
+    const kycData = await GetKycDetails(driver.userId)?.data;
     console.log("KYC Data for driver:", kycData);
     const data = {
       ...driver.toObject(),
