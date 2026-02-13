@@ -224,35 +224,35 @@ const sendOTP = async (identifier, purpose, identifierType = "PHONE", user) => {
 
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
     console.log("sendOTP otp:", otp);
+
+    // Find user if not provided, but don't block if not found (Implicit Registration)
     if (!user) {
       user = await User.findOne({
         $or: [{ email: identifier }, { phone: identifier }],
       });
-      if (!user) {
-        return {
-          success: false,
-          message: "User not found",
-        };
-      }
     }
-    console.log("sendOTP user:", user);
+
+    console.log("sendOTP user found:", !!user);
+
     //send otp on email
-    if (purpose === "REGISTRATION") {
-      await sendRegistrationOTPEmail(user?.email, user?.username, otp);
-    } else if (purpose === "LOGIN") {
-      const payload={
-        email:user?.email,
-        username:user?.username,
+    if (purpose === "REGISTRATION" && user?.email) {
+      await sendRegistrationOTPEmail(user.email, user.username, otp);
+    } else if (purpose === "LOGIN" && user?.email) {
+      const payload = {
+        email: user.email,
+        username: user.username,
         otp
       }
       const sendEmail = await sendLoginOTPEmail(
-       payload
+        payload
       );
       console.log("sendEmail:", sendEmail);
     }
 
+    // Send SMS (Use identifier if user not found, assuming identifier is phone)
+    const phoneToSend = user?.phone || identifier;
     const smsResult = await sendSMS(
-      user?.phone,
+      phoneToSend,
       `Your OTP is ${otp}. Please use this to verify your account . -MithilaStack`
     );
 
@@ -285,9 +285,6 @@ const sendOTP = async (identifier, purpose, identifierType = "PHONE", user) => {
 
     console.log("sendOTP otpDoc:", otpDoc);
 
-    // TODO: Send OTP via SMS or Email
-    console.log(`OTP for ${identifier}: ${otp}`);
-
     return { success: true, message: "OTP sent successfully" };
   } catch (error) {
     console.log("sendOTP error:", error);
@@ -300,7 +297,7 @@ const sendOTP = async (identifier, purpose, identifierType = "PHONE", user) => {
 };
 
 // Verify OTP
-const verifyOTP = async (identifier, otp, purpose, identifierType) => {
+const verifyOTP = async (identifier, otp, purpose, identifierType, role) => {
   try {
     const otpDoc = await OTP.findOne({
       identifier,
@@ -313,6 +310,7 @@ const verifyOTP = async (identifier, otp, purpose, identifierType) => {
     console.log("verifyOTP otp:", otp);
     console.log("verifyOTP purpose:", purpose);
     console.log("verifyOTP identifierType:", identifierType);
+    console.log("verifyOTP role:", role);
     console.log("otpdoc:", otpDoc);
     if (!otpDoc) {
       throw new Error("Invalid or expired OTP");
@@ -327,30 +325,51 @@ const verifyOTP = async (identifier, otp, purpose, identifierType) => {
     otpDoc.isUsed = true;
     await otpDoc.save();
 
-    // Update user verification status
-    if (identifierType === "PHONE") {
-      await User.updateOne(
-        { phone: identifier },
-        {
-          phoneVerified: true,
-          status: "ACTIVE",
-        }
-      );
-    } else if (identifierType === "EMAIL") {
-      await User.updateOne(
-        { email: identifier },
-        {
-          emailVerified: true,
-          status: "ACTIVE",
-        }
-      );
+    // Update user verification status if user exists
+    let user = await User.findOne({
+      $or: [{ email: identifier }, { phone: identifier }]
+    });
+
+    if (user) {
+      if (identifierType === "PHONE") {
+        await User.updateOne(
+          { phone: identifier },
+          {
+            phoneVerified: true,
+            status: "ACTIVE",
+          }
+        );
+      } else if (identifierType === "EMAIL") {
+        await User.updateOne(
+          { email: identifier },
+          {
+            emailVerified: true,
+            status: "ACTIVE",
+          }
+        );
+      }
+    } else {
+      // Implicit Registration: Create user if not found
+      console.log(`User not found, registering implicitly as ${role || "USER"}...`);
+      const userData = {
+        phone: identifier, // Assuming identifier is phone for implicit login
+        role: role || "USER",
+        userName: `User_${identifier.slice(-4)}`, // Generate temp username
+        password: "123456", // Default password since we use OTP
+      };
+
+      const registerResult = await register(userData);
+      if (!registerResult) {
+        throw new Error("Failed to register new user");
+      }
+      console.log("Implicit registration successful:", registerResult);
     }
+
     let verifyResult;
-    if (purpose === "LOGIN" || purpose === "REGISTRATION") {
-      console.log("purpose:", purpose);
-      verifyResult = await login(identifier, "123456");
-      console.log("verifyResult:", verifyResult);
-    }
+    // Always attempt login after verification/registration
+    // Assuming default password "123456" for OTP based flow or handling passwordless
+    verifyResult = await login(identifier, "123456");
+    console.log("verifyResult:", verifyResult);
 
     return { message: "OTP verified successfully", data: verifyResult };
   } catch (error) {

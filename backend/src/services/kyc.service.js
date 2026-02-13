@@ -81,7 +81,9 @@ const UpdateKycStatus = async (userId, status) => {
     console.log(
       `Sending update to auth service for userId: ${userId}, driverStatus: ${driverStatus}`
     );
-    const updatedData = await UpdateKycStatus({ userId, status: driverStatus });
+    // FIX: Lazy load driverService to avoid circular dependency
+    const driverService = require("./driver.service");
+    const updatedData = await driverService.UpdateKycStatus({ userId, status: driverStatus });
     console.log("KYC Auth Service response:", updatedData);
 
     return {

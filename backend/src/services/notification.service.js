@@ -1,6 +1,6 @@
 const UserModel = require("../models/user.model");
 const NotificationModel = require("../models/notification.model");
-const {sendToMultipleDevices}=require("../config/firebase.config")
+const { sendToMultipleDevices } = require("../config/firebase.config")
 const RegisterFCMToken = async (payload) => {
   try {
     const { userId, token, device } = payload;
@@ -17,25 +17,28 @@ const RegisterFCMToken = async (payload) => {
         message: "User not found",
       };
     }
-    const isExistingToken = User.metadata.deviceInfo?.some(
-      (device) => device.fcmToken === token
-    );
-    const isExistingDevice = User.metadata.deviceInfo?.some(
+
+    // Check if device ID already exists
+    const existingDeviceIndex = User.metadata.deviceInfo?.findIndex(
       (dev) => dev.deviceId === device.id
     );
-    if (isExistingToken) {
+
+    if (existingDeviceIndex !== -1) {
+      // Device exists - Update token and lastActiveAt
+      User.metadata.deviceInfo[existingDeviceIndex].fcmToken = token;
+      User.metadata.deviceInfo[existingDeviceIndex].lastActiveAt = new Date();
+      User.metadata.deviceInfo[existingDeviceIndex].deviceName = device.name; // Update name in case it changed
+
+      await User.save();
+
       return {
         success: true,
-        message: "Token already registered",
+        message: "Device token updated successfully",
       };
     }
-    if (isExistingDevice) {
-      return {
-        success: false,
-        message: "Device already registered with a different token",
-      };
-    }
-    console.log("userId,device", userId, device);
+
+    // New device - Add to list
+    console.log("Registering new device:", userId, device);
     const deviceInfo = {
       deviceId: device?.id,
       platform: device?.type,
@@ -43,12 +46,18 @@ const RegisterFCMToken = async (payload) => {
       deviceName: device?.name,
       lastActiveAt: new Date(),
     };
-    User.metadata.deviceInfo?.push(deviceInfo);
+
+    // Initialize array if it doesn't exist
+    if (!User.metadata.deviceInfo) {
+      User.metadata.deviceInfo = [];
+    }
+
+    User.metadata.deviceInfo.push(deviceInfo);
     await User.save();
 
     return {
       success: true,
-      message: "Token Register Successfully!",
+      message: "Token Registered Successfully!",
     };
   } catch (error) {
     console.error("Error in notification.service RegisterFCMToken:", error);
@@ -79,7 +88,7 @@ const SendTestNotification = async (payload) => {
     }
     const fcmTokens = User.metadata.deviceInfo?.map((device) => device.fcmToken);
     if (!fcmTokens || fcmTokens.length === 0) {
-      return {  
+      return {
         success: false,
         message: "No FCM tokens found for user",
       };

@@ -97,13 +97,14 @@ const sendOTP = async (req, res) => {
 // Verify OTP
 const verifyOTP = async (req, res) => {
   try {
-    const { identifier, otp, purpose, identifierType } = req.body;
+    const { identifier, otp, purpose, identifierType, role } = req.body;
 
     const result = await authService.verifyOTP(
       identifier,
       otp,
       purpose,
-      identifierType
+      identifierType,
+      role
     );
 
     return res.status(httpStatusCode.OK).json({
@@ -147,7 +148,7 @@ const updateProfile = async (req, res) => {
 
 
     const result = await authService.updateUserProfile(req.body, req.file);
-    
+
     res.status(httpStatusCode.OK).json(result);
   } catch (error) {
     console.error("Update profile error:", error);

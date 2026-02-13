@@ -2,7 +2,7 @@ const { sendToMultipleDevices } = require("../config/firebase.config");
 const Driver = require("../models/driver.model");
 const User = require("../models/user.model");
 const { filterDriversByRadius } = require("../utils/locationUtils");
-const { cloudinary } = require("../config/cloudinaryConfig");
+const { UploadToCloudinary } = require("../config/cloudinaryConfig");
 const KYCModel = require("../models/kyc.model");
 const { UpdateOrderStatusWithDriver } = require("./order.service");
 const { GetKycDetails } = require("./kyc.service");
@@ -78,7 +78,8 @@ const GetDriverDetails = async ({ driverId, userId }) => {
     const user = await User.find({
       userId: driver.userId,
     });
-    const kycData = await GetKycDetails(driver.userId)?.data;
+    const kycResponse = await GetKycDetails(driver.userId);
+    const kycData = kycResponse?.data;
     console.log("KYC Data for driver:", kycData);
     const data = {
       ...driver.toObject(),
@@ -117,9 +118,20 @@ const UpdateKycStatus = async ({ userId, status }) => {
         message: "Status is required",
       };
     }
+    const updatePayload = { kycStatus: status };
+
+    // Automatically approve driver if KYC is verified
+    if (status === 'VERIFIED') {
+      updatePayload.approvalStatus = 'APPROVED';
+      updatePayload.isActive = true;
+    } else if (status === 'REJECTED') {
+      updatePayload.approvalStatus = 'REJECTED';
+      updatePayload.isActive = false;
+    }
+
     const driver = await Driver.findOneAndUpdate(
       { userId },
-      { kycStatus: status },
+      updatePayload,
       { new: true }
     );
     if (!driver) {
@@ -611,7 +623,7 @@ const AddDriverDetails = async (payload) => {
         message: "Name and LicenseNumber are required",
       };
     }
-    let licenseDocumentUrl = await cloudinary.UploadToCloudinary(
+    let licenseDocumentUrl = await UploadToCloudinary(
       licenseDocument,
       "driverLicense"
     );
@@ -623,6 +635,7 @@ const AddDriverDetails = async (payload) => {
           "driver.licenseNumber": licenseNumber,
           "driver.licenseImageUrl": licenseDocumentUrl,
           "driver.phoneNumber": phoneNumber,
+          status: "pending", // Explicitly set status to pending
           stepCompleted: 3,
         },
       },
@@ -634,6 +647,27 @@ const AddDriverDetails = async (payload) => {
         message: "KYC Application not found for the given UserId",
       };
     }
+
+    // CRITICAL FIX: Update Driver status to PENDING so they appear in Admin Panel
+    // AND create driver record if it doesn't exist (upsert)
+    await Driver.findOneAndUpdate(
+      { userId: userId },
+      {
+        $set: {
+          kycStatus: "PENDING",
+          kycDetailsId: KYCApplication._id,
+        },
+        $setOnInsert: {
+          approvalStatus: "PENDING",
+          workingStatus: "OFFLINE",
+          isActive: true,
+          isDeleted: false,
+          driverId: `DRV${Date.now()}${Math.floor(Math.random() * 1000)}`,
+        }
+      },
+      { upsert: true, new: true }
+    );
+
     return {
       success: true,
       message: "Driver details added successfully",
@@ -660,4 +694,5 @@ module.exports = {
   SendRideRequestToDrivers,
   CompleteRideByDriver,
   ResetDailyEarnings,
+  AddDriverDetails, // Exported now
 };

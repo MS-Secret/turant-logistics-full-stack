@@ -72,7 +72,7 @@ async function verifyToken(req, res, next) {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     console.log("Decoded token payload:", decoded);
-    
+
 
     // Find user and check if still exists and is active
     const user = await User.findOne({
@@ -100,7 +100,7 @@ async function verifyToken(req, res, next) {
     console.log("Token expires at (exp):", new Date(decoded.exp * 1000));
     console.log("Current time:", new Date());
     console.log("User found:", user);
-    console.log("token:",token);
+    console.log("token:", token);
     // Check if session is still valid (optional - for stricter security)
     const session = await Session.findOne({
       userId: decoded.userId,
@@ -166,7 +166,7 @@ const VerifyTokenThroughSocket = async (authToken) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     console.log("Decoded token payload:", decoded);
-    
+
 
     // Find user and check if still exists and is active
     const user = await User.findOne({
@@ -194,7 +194,7 @@ const VerifyTokenThroughSocket = async (authToken) => {
     console.log("Token expires at (exp):", new Date(decoded.exp * 1000));
     console.log("Current time:", new Date());
     console.log("User found:", user);
-    console.log("token:",token);
+    console.log("token:", token);
     // Check if session is still valid (optional - for stricter security)
     const session = await Session.findOne({
       userId: decoded.userId,
@@ -210,7 +210,7 @@ const VerifyTokenThroughSocket = async (authToken) => {
       };
     }
 
-    
+
     return {
       success: true,
       data: {

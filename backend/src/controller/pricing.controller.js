@@ -42,8 +42,8 @@ const CreatePricing = async (req, res) => {
 
     try {
       if (distanceSlabs) {
-        parsedDistanceSlabs = typeof distanceSlabs === 'string' 
-          ? JSON.parse(distanceSlabs) 
+        parsedDistanceSlabs = typeof distanceSlabs === 'string'
+          ? JSON.parse(distanceSlabs)
           : distanceSlabs;
       }
     } catch (error) {
@@ -56,8 +56,8 @@ const CreatePricing = async (req, res) => {
 
     try {
       if (weightSlabs) {
-        parsedWeightSlabs = typeof weightSlabs === 'string' 
-          ? JSON.parse(weightSlabs) 
+        parsedWeightSlabs = typeof weightSlabs === 'string'
+          ? JSON.parse(weightSlabs)
           : weightSlabs;
       }
     } catch (error) {
@@ -92,15 +92,16 @@ const CreatePricing = async (req, res) => {
       extraHandsCharge,
     };
 
-    console.log("Payload for creating pricing:", payload);
+
     const result = await PricingService.CreatePricing(payload);
+
     if (result.success) {
       return res.status(httpStatusCode.CREATED).json(result);
     } else {
       return res.status(httpStatusCode.BAD_REQUEST).json(result);
     }
   } catch (error) {
-    console.error("Error creating pricing:", error);
+    console.error("Error creating pricing controller catch:", error);
     res.status(httpStatusCode.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Internal server error",
@@ -181,13 +182,13 @@ const CalculateFare = async (req, res) => {
   try {
     const payload = req.body;
     const result = await PricingService.CalculateFare(payload);
-    
+
     if (!result.success) {
       return res.status(httpStatusCode.BAD_REQUEST).json(result);
     }
-    
+
     return res.status(httpStatusCode.OK).json(result);
-    
+
   } catch (error) {
     console.error("Error calculating fare:", error);
     return res.status(httpStatusCode.INTERNAL_SERVER_ERROR).json({
@@ -202,11 +203,11 @@ const GetFareEstimate = async (req, res) => {
   try {
     const payload = req.body;
     const result = await PricingService.GetFareEstimate(payload);
-    
+
     if (!result.success) {
       return res.status(httpStatusCode.BAD_REQUEST).json(result);
     }
-    
+
     return res.status(httpStatusCode.OK).json(result);
 
   } catch (error) {

@@ -22,7 +22,21 @@ const generateUserId = (role) => {
   return `${prefix[role]}_${uuid}`;
 };
 
+// Generate Order ID
+const generateOrderId = () => {
+  const uuid = uuidv4().replace(/-/g, "");
+  return `ORD_${uuid}`;
+};
+
+// Generate Transaction ID
+const generateTransactionId = () => {
+  const uuid = uuidv4().replace(/-/g, "");
+  return `TXN_${uuid}`;
+};
+
 module.exports = {
   generateOTP,
   generateUserId,
+  generateOrderId,
+  generateTransactionId,
 };

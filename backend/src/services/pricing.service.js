@@ -38,10 +38,13 @@ const CreatePricing = async (payload) => {
       };
     }
 
-    const vehicleImageFileUrl = await cloudinary.UploadToCloudinary(
-      vehicleImageUrl,
-      "vehicleImages"
-    );
+    let vehicleImageFileUrl = "";
+    if (vehicleImageUrl) {
+      vehicleImageFileUrl = await cloudinary.UploadToCloudinary(
+        vehicleImageUrl,
+        "vehicleImages"
+      );
+    }
     const pricingData = await pricingModel.create({
       vehicleType,
       vehicleName,
