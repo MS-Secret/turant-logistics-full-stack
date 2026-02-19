@@ -14,7 +14,7 @@ import {
   Clock,
   TrendingUp,
 } from "lucide-react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import CreatePricing from "./createPricing";
 import toast from "react-hot-toast";
 import PricingService from "@/services/pricing";
@@ -72,12 +72,39 @@ const PricingMain = () => {
   const [addPricingDialogOpen, setAddPricingDialogOpen] = useState(false);
   const [pricingData, setPricingData] = useState<PricingData[]>([]);
   const [refreshData, setRefreshData] = useState(false);
+  const [editingPricing, setEditingPricing] = useState<PricingData | null>(null);
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPricing = async () => {
+      try {
+        setLoading(true);
+        const response = await PricingService.GetAllPricing();
+        if (response?.data?.data && Array.isArray(response.data.data)) {
+          setPricingData(response.data.data);
+        } else if (Array.isArray(response?.data)) {
+          setPricingData(response.data);
+        } else {
+          console.warn("Unexpected pricing data format:", response);
+          setPricingData([]);
+        }
+      } catch (error) {
+        console.error("Error fetching pricing data:", error);
+        toast.error("Failed to load pricing rules");
+        setPricingData([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPricing();
+  }, [refreshData]);
 
   const stats = [
     {
       title: "Total Pricing Rules",
-      value: pricingData.length.toString(),
+      value: (pricingData?.length || 0).toString(),
       change: "+3",
       changeType: "positive",
       icon: DollarSign,
@@ -85,7 +112,7 @@ const PricingMain = () => {
     },
     {
       title: "Active Rules",
-      value: pricingData.filter(item => item.isActive).length.toString(),
+      value: (pricingData?.filter(item => item.isActive)?.length || 0).toString(),
       change: "+2",
       changeType: "positive",
       icon: TrendingUp,
@@ -93,8 +120,8 @@ const PricingMain = () => {
     },
     {
       title: "Average Min Fare",
-      value: pricingData.length > 0 ? 
-        `₹${Math.round(pricingData.reduce((sum, item) => sum + item.minOrderFare, 0) / pricingData.length)}` 
+      value: (pricingData?.length > 0) ?
+        `₹${Math.round(pricingData.reduce((sum, item) => sum + (item.minOrderFare || 0), 0) / pricingData.length)}`
         : "₹0",
       change: "+8%",
       changeType: "positive",
@@ -103,7 +130,7 @@ const PricingMain = () => {
     },
     {
       title: "Vehicle Types",
-      value: new Set(pricingData.map(item => item.vehicleType)).size.toString(),
+      value: new Set(pricingData?.map(item => item.vehicleType) || []).size.toString(),
       change: "+5%",
       changeType: "positive",
       icon: MapPin,
@@ -139,22 +166,26 @@ const PricingMain = () => {
     }
   };
 
-  const handleGetPricing = async () => {
-    try {
-      const response = await PricingService.GetAllPricing();
-      console.log("Pricing data:", response?.data?.data);
-      if (response?.status === 200) {
-        setPricingData(response?.data?.data || []);
+  const handleDelete = async (id: string) => {
+
+    if (confirm("Are you sure you want to delete this pricing rule?")) {
+      try {
+        const response = await PricingService.DeletePricing(id);
+        if (response?.status === 200) {
+          toast.success("Pricing rule deleted successfully");
+          setRefreshData(!refreshData);
+        }
+      } catch (error) {
+        console.error("Error deleting pricing:", error);
+        toast.error("Failed to delete pricing rule");
       }
-    } catch (error) {
-      console.error("Error fetching pricing data:", error);
-      toast.error("Failed to fetch pricing data.");
     }
   };
 
-  useEffect(() => {
-    handleGetPricing();
-  }, [refreshData]);
+  const handleEdit = (pricing: PricingData) => {
+    setEditingPricing(pricing);
+    setAddPricingDialogOpen(true);
+  };
 
   return (
     <div className="space-y-6">
@@ -170,7 +201,10 @@ const PricingMain = () => {
         </div>
         <button
           className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors cursor-pointer"
-          onClick={() => setAddPricingDialogOpen(true)}
+          onClick={() => {
+            setEditingPricing(null);
+            setAddPricingDialogOpen(true);
+          }}
         >
           <Plus className="w-4 h-4" />
           <span>New Pricing Rule</span>
@@ -252,7 +286,7 @@ const PricingMain = () => {
 
       {/* Pricing Rules Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {pricingData.map((pricing) => (
+        {Array.isArray(pricingData) && pricingData.map((pricing) => (
           <div
             key={pricing._id}
             className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow"
@@ -344,7 +378,7 @@ const PricingMain = () => {
                     ))}
                   </div>
                 </div>
-                
+
                 <div>
                   <h4 className="text-sm font-medium text-gray-700 mb-2">Weight Slabs</h4>
                   <div className="space-y-2">
@@ -387,10 +421,16 @@ const PricingMain = () => {
                   <button className="text-blue-600 hover:text-blue-900 p-1 rounded">
                     <Eye className="w-4 h-4" />
                   </button>
-                  <button className="text-green-600 hover:text-green-900 p-1 rounded">
+                  <button
+                    className="text-green-600 hover:text-green-900 p-1 rounded"
+                    onClick={() => handleEdit(pricing)}
+                  >
                     <Edit className="w-4 h-4" />
                   </button>
-                  <button className="text-red-600 hover:text-red-900 p-1 rounded">
+                  <button
+                    className="text-red-600 hover:text-red-900 p-1 rounded"
+                    onClick={() => handleDelete(pricing._id)}
+                  >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -400,7 +440,7 @@ const PricingMain = () => {
         ))}
       </div>
 
-      {pricingData.length === 0 && (
+      {(pricingData?.length || 0) === 0 && (
         <div className="text-center py-12">
           <div className="mx-auto h-24 w-24 text-gray-400">
             <DollarSign className="h-24 w-24" />
@@ -411,7 +451,10 @@ const PricingMain = () => {
           </p>
           <div className="mt-6">
             <button
-              onClick={() => setAddPricingDialogOpen(true)}
+              onClick={() => {
+                setEditingPricing(null);
+                setAddPricingDialogOpen(true);
+              }}
               className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -422,7 +465,7 @@ const PricingMain = () => {
       )}
 
       {/* Pagination */}
-      {pricingData.length > 0 && (
+      {(pricingData?.length || 0) > 0 && (
         <div className="bg-white px-6 py-3 border border-gray-200 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="text-sm text-gray-700">
@@ -447,7 +490,10 @@ const PricingMain = () => {
 
       <Dialog
         open={addPricingDialogOpen}
-        onOpenChange={setAddPricingDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) setEditingPricing(null);
+          setAddPricingDialogOpen(open);
+        }}
       >
         <DialogContent
           className="min-w-[900px] max-h-[90vh] rounded-2xl border border-gray-200 p-0 overflow-y-scroll"
@@ -455,8 +501,19 @@ const PricingMain = () => {
             scrollbarWidth: "none",
           }}
         >
+          <DialogTitle className="sr-only">
+            {editingPricing ? "Edit Pricing Rule" : "Create New Pricing Rule"}
+          </DialogTitle>
           <div className="p-6 w-full h-full">
-            <CreatePricing onClose={() => setAddPricingDialogOpen(false)} refreshData={refreshData} setRefreshData={setRefreshData}/>
+            <CreatePricing
+              onClose={() => {
+                setAddPricingDialogOpen(false);
+                setEditingPricing(null);
+              }}
+              refreshData={refreshData}
+              setRefreshData={setRefreshData}
+              initialData={editingPricing}
+            />
           </div>
         </DialogContent>
       </Dialog>

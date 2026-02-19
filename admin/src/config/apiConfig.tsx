@@ -1,29 +1,31 @@
 import toast from "react-hot-toast";
 import axios from "axios";
-const Request = async (httpOptions:any) => {
-  
+const Request = async (httpOptions: any) => {
+
   const token = localStorage.getItem("accessToken");
   if (!httpOptions.exact) {
     httpOptions.url = process.env.NEXT_PUBLIC_API_URL + "/" + httpOptions.url;
-    console.log("http header:", httpOptions);
   }
-  httpOptions.headers = {
-    "Content-Type": httpOptions.files
-      ? "multipart/form-data"
-      : "application/json",
+  const headers = {
     Accept: "application/json",
     ...httpOptions.headers,
   };
+
+  if (!httpOptions.files) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  httpOptions.headers = headers;
   if (httpOptions.secure) {
     httpOptions.headers.Authorization = `Bearer ${token}`;
   }
 
-  const handleRequestErrors = (error:any) => {
+  const handleRequestErrors = (error: any) => {
     if (error.response) {
       const { status, data } = error?.response;
       console.log("error response", data);
       if (status === 401 && data?.message === "Unauthorized: Invalid token") {
-        
+
         window.location.replace("/login");
       } else if (status == 413) {
         toast.error("File size exceeds the limit");
@@ -36,10 +38,10 @@ const Request = async (httpOptions:any) => {
   };
 
   return axios(httpOptions)
-    .then((response:any) => response)
-    .catch((error:any) => {
+    .then((response: any) => response)
+    .catch((error: any) => {
       handleRequestErrors(error);
-      throw error?.response;
+      throw error?.response || error;
     });
 };
 

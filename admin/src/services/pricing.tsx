@@ -2,7 +2,7 @@ import Request from "@/config/apiConfig";
 
 const CreatePricing = async (payload: any) =>
   Request({
-    url: "orders/pricing",
+    url: "pricing",
     method: "POST",
     data: payload,
     files: true,
@@ -10,21 +10,30 @@ const CreatePricing = async (payload: any) =>
   });
 const GetAllPricing = async () =>
   Request({
-    url: "orders/pricing",
+    url: "pricing",
     method: "GET",
     secure: true,
   });
 
 const GetSinglePricing = async (id: any) =>
   Request({
-    url: `orders/pricing/${id}`,
+    url: `pricing/${id}`,
     method: "GET",
     secure: true,
   });
 const DeletePricing = async (id: any) =>
   Request({
-    url: `orders/pricing/${id}`,
+    url: `pricing/${id}`,
     method: "DELETE",
+    secure: true,
+  });
+
+const UpdatePricing = async (id: any, payload: any) =>
+  Request({
+    url: `pricing/${id}`,
+    method: "PUT",
+    data: payload,
+    files: true,
     secure: true,
   });
 
@@ -33,6 +42,7 @@ const PricingService = {
   GetAllPricing,
   GetSinglePricing,
   DeletePricing,
+  UpdatePricing,
 };
 
 export default PricingService;

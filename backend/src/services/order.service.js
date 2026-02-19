@@ -164,8 +164,8 @@ const getOrderById = async (payload) => {
     }
 
     if (order.driverId) {
-      const userData=await getUserById(order?.driverId);
-      driverDetails=userData?.data;
+      const userData = await getUserById(order?.driverId);
+      driverDetails = userData?.data;
     }
 
     return {
@@ -292,6 +292,53 @@ const UpdateThePaymentOrderStatus = async (payload) => {
   }
 };
 
+const updateRideStatusByOrderId = async (payload) => {
+  try {
+    const { orderId, status, updateData } = payload;
+    if (!orderId) {
+      return { success: false, message: "Order ID is required" };
+    }
+
+    const query = { orderId: orderId };
+    const update = {
+      ...updateData,
+      ...(status && { status })
+    };
+
+    const updatedOrder = await OrderModel.findOneAndUpdate(
+      query,
+      update,
+      { new: true }
+    ).exec();
+
+    if (!updatedOrder) {
+      return { success: false, message: "Order not found" };
+    }
+
+    // Trigger Wallet Processing if status is 'COMPLETED'
+    if (status === "COMPLETED") {
+      const walletResult = await require("../services/wallet.service").processOrderPayment(updatedOrder._id);
+      if (!walletResult.success) {
+        console.error("Wallet processing failed for order:", orderId, walletResult.error);
+        // Optional: You might want to flag this error, but don't fail the HTTP response for the status update
+      }
+    }
+
+    return {
+      success: true,
+      message: "Order updated successfully",
+      data: updatedOrder,
+    };
+  } catch (error) {
+    console.error("Error updating ride status:", error);
+    return {
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    };
+  }
+};
+
 module.exports = {
   getAllOrders,
   getConsumersOrders,
@@ -300,4 +347,5 @@ module.exports = {
   UpdateOrderDetails,
   UpdateOrderStatusWithDriver,
   UpdateThePaymentOrderStatus,
+  updateRideStatusByOrderId,
 };

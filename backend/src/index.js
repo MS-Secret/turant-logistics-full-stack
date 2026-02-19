@@ -8,9 +8,9 @@ const winston = require("winston");
 const { dbConnection } = require("./config/db");
 const http = require("http");
 const { initializeSocket } = require("./socket/socket");
-const mainRoutes=require("./routes/main.routes");
-const bodyParser=require('body-parser');
-const cookieParser=require('cookie-parser');
+const mainRoutes = require("./routes/main.routes");
+const bodyParser = require('body-parser');
+const cookieParser = require('cookie-parser');
 const { createDefaultAdmin } = require("./services/auth.service");
 
 const app = express();
@@ -60,7 +60,7 @@ app.use(helmet());
 console.log("cors data:", process.env.CORS_ORIGIN.split(","))
 app.use(
   cors({
-    origin:  process.env.CORS_ORIGIN.split(",") || "*",
+    origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(",").map(origin => origin.trim()) : "*",
     methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE"],
     preflightContinue: false,
     optionsSuccessStatus: 204,
@@ -85,7 +85,7 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // Body parsing
-app.use(bodyParser.urlencoded({extended:true}));
+app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(cookieParser());
 
@@ -93,16 +93,16 @@ app.use(cookieParser());
 // Request logging with connection monitoring
 app.use((req, res, next) => {
   logger.info(`${req.method} ${req.path} - ${req.ip}`);
-  
+
   // Monitor connection state
   req.on('aborted', () => {
     logger.warn(`Request aborted: ${req.method} ${req.path}`);
   });
-  
+
   req.on('close', () => {
     logger.info(`Request closed: ${req.method} ${req.path}`);
   });
-  
+
   next();
 });
 
@@ -140,7 +140,7 @@ app.use((error, req, res, next) => {
   if (res.headersSent) {
     return next(error);
   }
-  
+
   // Handle specific connection errors
   if (error.code === 'ECONNABORTED' || error.type === 'request.aborted') {
     logger.warn(`Request aborted: ${req.method} ${req.path}`, {
@@ -148,11 +148,11 @@ app.use((error, req, res, next) => {
       message: error.message,
       timestamp: new Date().toISOString()
     });
-    
+
     // Don't send response for aborted requests
     return;
   }
-  
+
   logger.error("backend service error:", {
     error: error.message,
     stack: error.stack,
@@ -179,7 +179,7 @@ createDefaultAdmin();
 // Start the server
 async function startServer() {
   try {
-    
+
     // Start HTTP server
     server.listen(port, () => {
       console.log(`backend service running on port http://localhost:${port}`);

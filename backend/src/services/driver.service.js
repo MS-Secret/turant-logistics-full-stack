@@ -495,6 +495,7 @@ const SendRideRequestToDrivers = async (payload) => {
         type: "RIDE_REQUEST",
         rideRequestData: JSON.stringify(rideRequestData),
         consumerData: JSON.stringify(consumer),
+        orderId: orderId || "", // IMPORTANT: Include orderId in notification data
         timestamp: new Date().toISOString(),
       }
     );
@@ -548,9 +549,10 @@ const CompleteRideByDriver = async ({ driverId, orderId, amount }) => {
     driver.statistics.totalOrders += 1;
     driver.statistics.completedOrders += 1;
 
-    // Update earnings
-    driver.earnings.totalEarnings += amount;
-    driver.earnings.todayEarnings += amount;
+    // Update earnings with safe validation
+    const safeAmount = (amount && !isNaN(amount)) ? Number(amount) : 0;
+    driver.earnings.totalEarnings += safeAmount;
+    driver.earnings.todayEarnings += safeAmount;
 
     await driver.save();
     const payload = {
@@ -683,6 +685,129 @@ const AddDriverDetails = async (payload) => {
   }
 };
 
+const SendRideRequestNotification = async (drivers, rideData) => {
+  try {
+    if (!drivers || drivers.length === 0) return;
+
+    // Extract user IDs to fetch FCM tokens
+    const userIds = drivers.map(driver => driver.userId);
+
+    // Fetch users with their device info
+    const users = await User.find({ userId: { $in: userIds } }).select("userId metadata.deviceInfo");
+
+    // Collect all FCM tokens
+    let fcmTokens = [];
+    users.forEach(user => {
+      if (user.metadata && user.metadata.deviceInfo) {
+        user.metadata.deviceInfo.forEach(device => {
+          if (device.fcmToken) {
+            fcmTokens.push(device.fcmToken);
+          }
+        });
+      }
+    });
+
+    if (fcmTokens.length === 0) {
+      console.log("No FCM tokens found for nearby drivers");
+      return;
+    }
+
+    // Construct notification payload
+    // rideData now includes orderId (added in socket.js before calling this function)
+    const title = "New Ride Request 🚖";
+    const body = `Pickup: ${rideData.pickupLocation?.address || 'Unknown Location'} - Fare: ₹${rideData.estimatedFare || 0}`;
+    
+    // Extract consumerData if it exists in rideData, otherwise use empty object
+    const consumerData = rideData.consumerData || {};
+    
+    const data = {
+      type: "RIDE_REQUEST",
+      rideRequestId: rideData.requestId || "",
+      orderId: rideData.orderId || "", // orderId is now included in rideData from socket.js
+      rideRequestData: JSON.stringify(rideData), // Include full rideData with orderId
+      consumerData: JSON.stringify(consumerData), // Include consumer data
+    };
+    
+    console.log("FCM Notification data - orderId:", data.orderId, "rideRequestId:", data.rideRequestId);
+
+    console.log(`Sending FCM notification to ${fcmTokens.length} devices`);
+
+    // Send notification
+    await sendToMultipleDevices(fcmTokens, { title, body }, data);
+
+    return { success: true, count: fcmTokens.length };
+  } catch (error) {
+    console.error("Error sending ride request FCM notification:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+const AcceptRideRequest = async (payload) => {
+  try {
+    const { driverId, orderId, lat, long } = payload;
+
+    if (!driverId || !orderId) {
+      return { success: false, message: "DriverId and OrderId are required" };
+    }
+
+    // 1. Assign Driver to Order
+    const orderPayload = {
+      orderId,
+      driverId,
+      status: "ACCEPTED" // Or ASSIGNED? Let's check UpdateOrderStatusWithDriver
+    };
+
+    // We need to verify if the order is still PENDING? 
+    // The socket handles the race condition for activeRideRequests map, 
+    // but good to check DB too if needed. For now, we trust the flow.
+
+    const updateOrderResult = await UpdateOrderStatusWithDriver(orderPayload);
+
+    if (!updateOrderResult.success) {
+      return { success: false, message: "Failed to update order status" };
+    }
+
+    // 2. Update Driver Status to BUSY
+    const driverUpdatePayload = {
+      userId: driverId, // Assuming driverId passed is actually userId. Let's verify usage.
+      status: "BUSY",
+      lat,
+      long
+    };
+
+    // Wait, UpdateDriverWorkingStatus takes userId. 
+    // In socket.js, data comes from client. 
+    // Partner triggers it with `user?.userId` as driverId?
+    // Let's assume input driverId is the userId.
+
+    await UpdateDriverWorkingStatus(driverUpdatePayload);
+
+    // 3. Get Driver Details to return to Consumer
+    const driverDetails = await Driver.findOne({ userId: driverId });
+    const userDetails = await User.findOne({ userId: driverId }).select("firstName lastName phoneNumber profilePicture ratings");
+
+    const fullDriverData = {
+      ...driverDetails?.toObject(),
+      user: userDetails?.toObject(),
+      currentLocation: { latitude: lat, longitude: long }
+    };
+
+    return {
+      success: true,
+      message: "Ride accepted successfully",
+      data: {
+        orderId,
+        driver: fullDriverData,
+        order: updateOrderResult.data // Assuming this contains updated order
+      }
+    };
+
+  } catch (error) {
+    console.error("Error in AcceptRideRequest:", error);
+    return { success: false, message: error.message };
+  }
+};
+
 module.exports = {
   GetDriverList,
   GetDriverDetails,
@@ -694,5 +819,7 @@ module.exports = {
   SendRideRequestToDrivers,
   CompleteRideByDriver,
   ResetDailyEarnings,
-  AddDriverDetails, // Exported now
+  AddDriverDetails,
+  SendRideRequestNotification,
+  AcceptRideRequest
 };

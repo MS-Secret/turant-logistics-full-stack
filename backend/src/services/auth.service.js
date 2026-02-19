@@ -11,14 +11,28 @@ const {
 } = require("./emailservices/email.processor");
 const cloudinary = require("../config/cloudinaryConfig");
 const { sendSMS } = require("./smsService/sms.processor");
+const { GetKycDetails } = require("./kyc.service");
 
 // Register user
 const register = async (userData) => {
   const { email, phone, role = "USER", userName, password } = userData;
 
-  // Check if user already exists
+  // Check if user already exists with same phone/email AND same role
+  // This allows same phone to have different accounts for different roles
+  const criteria = [];
+  if (phone) {
+    criteria.push({ phone: phone, role: role });
+  }
+  if (email) {
+    criteria.push({ email: email, role: role });
+  }
+
+  if (criteria.length === 0) {
+    throw new Error("Either phone or email is required");
+  }
+
   const existingUser = await User.findOne({
-    $or: [{ email: email }, { phone: phone }],
+    $or: criteria,
   });
 
   if (existingUser) {
@@ -26,7 +40,7 @@ const register = async (userData) => {
       console.log("Admin already exists:", existingUser);
       return null;
     }
-    throw new Error("User already exists with this email or phone number");
+    throw new Error(`User already exists with this ${phone ? 'phone' : 'email'} and role ${role}`);
   }
 
   // Generate unique user ID
@@ -44,7 +58,30 @@ const register = async (userData) => {
   });
   console.log("user before save:", user);
 
-  await user.save();
+  try {
+    await user.save();
+  } catch (error) {
+    // Handle duplicate key error (E11000) - might occur if compound index not yet created
+    if (error.code === 11000) {
+      // Check if it's a phone duplicate
+      if (error.keyPattern && error.keyPattern.phone) {
+        // Check if user exists with same phone but different role
+        const existingUserWithPhone = await User.findOne({ phone });
+        if (existingUserWithPhone && existingUserWithPhone.role !== role) {
+          // This is expected - same phone with different role should be allowed
+          // But if we get here, the compound index might not be set up correctly
+          throw new Error(`Phone number already exists with role ${existingUserWithPhone.role}. Please ensure compound index { phone: 1, role: 1 } is created.`);
+        } else if (existingUserWithPhone && existingUserWithPhone.role === role) {
+          // Same phone and same role - this should not happen as we checked above
+          throw new Error(`User already exists with this ${phone ? 'phone' : 'email'} and role ${role}`);
+        }
+      }
+      // Re-throw if it's a different duplicate key error
+      throw error;
+    }
+    // Re-throw other errors
+    throw error;
+  }
 
   // Create role-specific profile
   await createRoleSpecificProfile(user);
@@ -100,14 +137,25 @@ const createRoleSpecificProfile = async (user) => {
 };
 
 // Login user
-const login = async (identifier, password, deviceInfo = {}) => {
+const login = async (identifier, password, deviceInfo = {}, expectedRole = null) => {
   try {
-    // Find user by email or phone
-    const user = await User.findOne({
+    // Build query with optional role filter
+    // This ensures we find the correct user when multiple users exist with same phone/email but different roles
+    let query = {
       $or: [{ email: identifier }, { phone: identifier }],
       isDeleted: false,
-    }).select("+password");
+    };
+    
+    // If expectedRole is provided, filter by role to ensure correct user is found
+    // This fixes the issue where login() finds wrong user when same phone has multiple roles
+    if (expectedRole) {
+      query.role = expectedRole;
+    }
+    
+    // Find user by email or phone (and role if provided)
+    const user = await User.findOne(query).select("+password");
     console.log("login user:", user);
+    console.log("login expectedRole:", expectedRole);
 
     if (!user) {
       throw new Error("Invalid credentials");
@@ -234,22 +282,36 @@ const sendOTP = async (identifier, purpose, identifierType = "PHONE", user) => {
 
     console.log("sendOTP user found:", !!user);
 
-    //send otp on email
+    // Send email OTP in background (non-blocking) - don't wait for it
+    // This ensures SMS is sent immediately without delay
     if (purpose === "REGISTRATION" && user?.email) {
-      await sendRegistrationOTPEmail(user.email, user.username, otp);
+      // Fire and forget - don't await, let it run in background
+      sendRegistrationOTPEmail({ email: user.email, username: user.username, otp })
+        .then((result) => {
+          console.log("Registration OTP email sent successfully:", result);
+        })
+        .catch((error) => {
+          console.error("Failed to send registration OTP email (non-blocking):", error.message);
+          // Don't throw - email failure shouldn't block OTP flow
+        });
     } else if (purpose === "LOGIN" && user?.email) {
       const payload = {
         email: user.email,
         username: user.username,
         otp
-      }
-      const sendEmail = await sendLoginOTPEmail(
-        payload
-      );
-      console.log("sendEmail:", sendEmail);
+      };
+      // Fire and forget - don't await, let it run in background
+      sendLoginOTPEmail(payload)
+        .then((result) => {
+          console.log("Login OTP email sent successfully:", result);
+        })
+        .catch((error) => {
+          console.error("Failed to send login OTP email (non-blocking):", error.message);
+          // Don't throw - email failure shouldn't block OTP flow
+        });
     }
 
-    // Send SMS (Use identifier if user not found, assuming identifier is phone)
+    // Send SMS immediately (Use identifier if user not found, assuming identifier is phone)
     const phoneToSend = user?.phone || identifier;
     const smsResult = await sendSMS(
       phoneToSend,
@@ -325,15 +387,30 @@ const verifyOTP = async (identifier, otp, purpose, identifierType, role) => {
     otpDoc.isUsed = true;
     await otpDoc.save();
 
-    // Update user verification status if user exists
-    let user = await User.findOne({
-      $or: [{ email: identifier }, { phone: identifier }]
-    });
+    // Determine the expected role (default to USER if not provided)
+    const expectedRole = role || "USER";
 
+    // Check if user exists with same phone/email AND same role
+    // This ensures same phone can have separate accounts for different roles
+    let query = {};
+    if (identifierType === 'PHONE') {
+      query = { phone: identifier, role: expectedRole };
+    } else if (identifierType === 'EMAIL') {
+      query = { email: identifier, role: expectedRole };
+    } else {
+      query = { 
+        $or: [{ email: identifier }, { phone: identifier }],
+        role: expectedRole
+      };
+    }
+
+    let user = await User.findOne(query);
+
+    // If user exists with matching phone and role, proceed with login
     if (user) {
       if (identifierType === "PHONE") {
         await User.updateOne(
-          { phone: identifier },
+          { phone: identifier, role: expectedRole },
           {
             phoneVerified: true,
             status: "ACTIVE",
@@ -341,20 +418,55 @@ const verifyOTP = async (identifier, otp, purpose, identifierType, role) => {
         );
       } else if (identifierType === "EMAIL") {
         await User.updateOne(
-          { email: identifier },
+          { email: identifier, role: expectedRole },
           {
             emailVerified: true,
             status: "ACTIVE",
           }
         );
       }
+
+      // Ensure role-specific profile exists
+      if (expectedRole === "DRIVER") {
+        const driverProfile = await Driver.findOne({ userId: user.userId });
+        if (!driverProfile) {
+          console.log("Creating missing Driver profile for user...");
+          await createRoleSpecificProfile(user);
+        }
+      } else if (expectedRole === "USER") {
+        const consumerProfile = await Consumer.findOne({ userId: user.userId });
+        if (!consumerProfile) {
+          console.log("Creating missing Consumer profile for user...");
+          await createRoleSpecificProfile(user);
+        }
+      }
     } else {
-      // Implicit Registration: Create user if not found
-      console.log(`User not found, registering implicitly as ${role || "USER"}...`);
+      // Check if phone/email exists with different role
+      let existingUserQuery = {};
+      if (identifierType === 'PHONE') {
+        existingUserQuery = { phone: identifier };
+      } else if (identifierType === 'EMAIL') {
+        existingUserQuery = { email: identifier };
+      } else {
+        existingUserQuery = { $or: [{ email: identifier }, { phone: identifier }] };
+      }
+
+      const existingUserWithDifferentRole = await User.findOne(existingUserQuery);
+
+      if (existingUserWithDifferentRole) {
+        // Phone/email exists but with different role - create new account for this role
+        console.log(`Phone/email exists with role ${existingUserWithDifferentRole.role}, creating new account with role ${expectedRole}...`);
+      } else {
+        // Completely new user - implicit registration
+        console.log(`User not found, registering implicitly as ${expectedRole}...`);
+      }
+
+      // Implicit Registration: Create new user with expected role
       const userData = {
-        phone: identifier, // Assuming identifier is phone for implicit login
-        role: role || "USER",
-        userName: `User_${identifier.slice(-4)}`, // Generate temp username
+        phone: identifierType === 'PHONE' ? identifier : undefined,
+        email: identifierType === 'EMAIL' ? identifier : undefined,
+        role: expectedRole,
+        userName: `User_${identifier.slice(-4)}_${Date.now()}`, // Generate unique username
         password: "123456", // Default password since we use OTP
       };
 
@@ -363,12 +475,22 @@ const verifyOTP = async (identifier, otp, purpose, identifierType, role) => {
         throw new Error("Failed to register new user");
       }
       console.log("Implicit registration successful:", registerResult);
+      
+      // Refetch the newly created user
+      user = await User.findOne(query);
+      if (!user) {
+        throw new Error("Failed to retrieve newly registered user");
+      }
     }
 
+    // CRITICAL FIX: Use the user we found/created (with correct role) instead of calling login with identifier
+    // This ensures we login with the correct role user, not any other user with same phone
     let verifyResult;
-    // Always attempt login after verification/registration
-    // Assuming default password "123456" for OTP based flow or handling passwordless
-    verifyResult = await login(identifier, "123456");
+    // Call login with identifier BUT also pass role to ensure correct user is found
+    // OR better: Use userId directly since we already have the correct user
+    // Since login() doesn't accept userId, we'll modify it to filter by role when role is provided
+    // For now, let's refetch user with role filter and then call login
+    verifyResult = await login(identifier, "123456", {}, expectedRole);
     console.log("verifyResult:", verifyResult);
 
     return { message: "OTP verified successfully", data: verifyResult };
@@ -401,26 +523,43 @@ const getUserProfile = async (userId) => {
       roleSpecificData = await Driver.findOne({ userId });
 
       // Fetch KYC data with error handling and fallback
+      let kycData = null;
       try {
-        const kycData = await GetKycDetails(userId)?.data;
-        console.log("KYC data fetched for driver:", kycData);
-        roleSpecificData = { ...roleSpecificData?._doc, kyc: kycData };
+        const kycResult = await GetKycDetails(userId);
+        // GetKycDetails returns { success, data } structure
+        if (kycResult?.success && kycResult?.data) {
+          kycData = kycResult.data;
+          console.log("KYC data fetched for driver:", kycData);
+        } else {
+          console.warn(`KYC data not found for driver ${userId}`);
+          kycData = {
+            exists: false,
+            userId,
+            message: "KYC data not found",
+            fallback: true,
+          };
+        }
       } catch (error) {
         console.warn(
           `KYC data fetch failed for driver ${userId}:`,
           error.message
         );
-        // Provide fallback KYC structure to prevent profile fetch from failing
-        roleSpecificData = {
-          ...roleSpecificData?._doc,
-          kyc: {
-            exists: false,
-            error: error.message,
-            userId,
-            message: "KYC data temporarily unavailable",
-            fallback: true,
-          },
+        kycData = {
+          exists: false,
+          error: error.message,
+          userId,
+          message: "KYC data temporarily unavailable",
+          fallback: true,
         };
+      }
+
+      roleSpecificData = { ...roleSpecificData?._doc, kyc: kycData };
+
+      // [FIX] Merge Consumer data if it exists, to support Drivers using Consumer App
+      const consumerData = await Consumer.findOne({ userId });
+      if (consumerData) {
+        console.log("Merging Consumer data for Driver:", userId);
+        roleSpecificData = { ...consumerData?._doc, ...roleSpecificData };
       }
       break;
     case "ADMIN":
@@ -464,6 +603,7 @@ const updateUserProfile = async (updateData, profileImageFile) => {
 
     const {
       username,
+      email: emailInput,
       firstName,
       lastName,
       gender,
@@ -480,6 +620,24 @@ const updateUserProfile = async (updateData, profileImageFile) => {
     if (!user.profile.address) user.profile.address = {};
 
     if (username) user.username = username;
+
+    // Allow adding/updating email from Edit Profile (optional; user may not have email at register)
+    if (emailInput !== undefined && emailInput !== null) {
+      const newEmail = typeof emailInput === 'string' ? emailInput.trim().toLowerCase() : '';
+      if (newEmail) {
+        const emailRegex = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/;
+        if (!emailRegex.test(newEmail)) {
+          return { success: false, message: "Please enter a valid email address" };
+        }
+        const existingWithEmail = await User.findOne({ email: newEmail, userId: { $ne: user.userId }, isDeleted: false });
+        if (existingWithEmail) {
+          return { success: false, message: "This email is already used by another account" };
+        }
+        user.email = newEmail;
+      } else {
+        user.email = undefined;
+      }
+    }
     if (firstName) user.profile.firstName = firstName;
     if (lastName) user.profile.lastName = lastName;
     if (gender) user.profile.gender = gender;

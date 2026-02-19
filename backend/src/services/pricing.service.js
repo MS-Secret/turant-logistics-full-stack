@@ -87,6 +87,91 @@ const CreatePricing = async (payload) => {
   }
 };
 
+const UpdatePricing = async (id, payload) => {
+  try {
+    const {
+      vehicleType,
+      vehicleName,
+      vehicleImageUrl,
+      vehicleBodyDetails,
+      vehicleBodyType,
+      vehicleFuelType,
+      minOrderFare,
+      distanceSlabs,
+      weightSlabs,
+      platformSurchargePercentage,
+      discountPercentage,
+      waitingChargePerMin,
+      freeWaitingMinutes,
+      returnTripFeePercentage,
+      nightSurchargePercentage,
+      codHandlingFee,
+      loadingCharge,
+      offloadingCharge,
+      extraHandsCharge,
+      isActive,
+    } = payload;
+
+    let updateData = {
+      vehicleType,
+      vehicleName,
+      vehicleBodyType,
+      vehicleFuelType,
+      minOrderFare,
+      distanceSlabs,
+      weightSlabs,
+      platformSurchargePercentage,
+      discountPercentage,
+      waitingChargePerMin,
+      freeWaitingMinutes,
+      returnTripFeePercentage,
+      nightSurchargePercentage,
+      codHandlingFee,
+      loadingCharge,
+      offloadingCharge,
+      extraHandsCharge,
+    };
+
+    if (isActive !== undefined) updateData.isActive = isActive;
+
+    if (vehicleBodyDetails) {
+      updateData.vehicleBodyDetails = vehicleBodyDetails;
+    }
+
+    if (vehicleImageUrl) {
+      const vehicleImageFileUrl = await cloudinary.UploadToCloudinary(
+        vehicleImageUrl,
+        "vehicleImages"
+      );
+      updateData.vehicleImageUrl = vehicleImageFileUrl;
+    }
+
+    const pricingData = await pricingModel.findByIdAndUpdate(id, updateData, {
+      new: true,
+    });
+
+    if (!pricingData) {
+      return {
+        success: false,
+        message: "Pricing not found or failed to update",
+      };
+    }
+
+    return {
+      success: true,
+      message: "Pricing updated successfully",
+      data: pricingData,
+    };
+  } catch (error) {
+    console.error("Error updating pricing:", error);
+    return {
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    };
+  }
+};
+
 const GetPricingAll = async () => {
   try {
     const pricingData = await pricingModel.find({ isDelete: false });
@@ -477,6 +562,7 @@ const PricingService = {
   GetPricingById,
   DeletePricingById,
   CalculateFare,
+  UpdatePricing,
   GetFareEstimate,
   CalculateFareAllVehiclesSuggestions,
 };

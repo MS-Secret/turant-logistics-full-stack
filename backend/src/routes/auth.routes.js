@@ -31,12 +31,13 @@ const multer = require("multer");
 const upload = multer();
 
 // Use multer only when Content-Type is multipart/form-data
+// Use multer only when Content-Type is multipart/form-data
 const conditionalMulter = (fieldName) => (req, res, next) => {
   const contentType = req.headers["content-type"] || "";
   if (contentType.includes("multipart/form-data")) {
     console.log("Applying multer for field:", fieldName);
 
-    upload.single(fieldName)(req, res, (err) => {
+    return upload.single(fieldName)(req, res, (err) => {
       if (err) return next(err);
       next();
     });
@@ -126,7 +127,7 @@ router.delete(
 router.get("/driver/all", verifyToken, handleGetDriverList);
 router.get("/driver/active", verifyToken, handleActiveFindingDrivers);
 router.get("/driver/nearby", verifyToken, handleGetNearbyDrivers);
-router.post("/driver/update-location",verifyToken,handleUpdateCurrentLocation);
+router.post("/driver/update-location", verifyToken, handleUpdateCurrentLocation);
 router.post("/driver/status", verifyToken, handleUpdateDriverWorkingStatus);
 router.post("/driver/ride-request", verifyToken, handleSendRideRequest);
 router.get("/driver/:driverId", verifyToken, handleGetDriverDetails);

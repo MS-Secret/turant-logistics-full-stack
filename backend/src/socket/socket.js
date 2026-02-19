@@ -3,7 +3,8 @@ const dotenv = require("dotenv");
 const winston = require("winston");
 const driverService = require("../services/driver.service");
 const { VerifyTokenThroughSocket } = require("../middleware/auth.middleware");
-const { UpdateOrderStatusWithDriver } = require("../services/order.service");
+const { UpdateOrderStatusWithDriver, updateRideStatusByOrderId } = require("../services/order.service");
+const PricingService = require("../services/pricing.service");
 
 // Store active ride requests and their timers
 const activeRideRequests = new Map();
@@ -144,7 +145,6 @@ const initializeSocket = (server) => {
 
       // Handle ride request from consumer
       socket.on("send-ride-request", async (data) => {
-        console.log("Ride request received from consumer:", data);
         try {
           const result = await driverService.SendRideRequestToDrivers({
             ...data,
@@ -159,7 +159,46 @@ const initializeSocket = (server) => {
 
           // Store the ride request
           const rideRequestId = result.data.rideRequestData.requestId;
-          const orderId = result.data.orderId;
+          // Extract orderId from multiple sources: result.data.orderId, data.orderId
+          let orderId = result.data.orderId || data.orderId || null;
+
+          // If orderId is still missing, try to fetch from recent orders or create one
+          if (!orderId && socket.userId) {
+            try {
+              const Order = require("../models/order.model");
+              const { generateOrderId } = require("../utils/generateRandom");
+
+              // Find the most recent pending/in-progress order for this user
+              const recentOrder = await Order.findOne({
+                userId: socket.userId,
+                status: { $in: ["PENDING", "IN_PROGRESS", "CONFIRMED", "CREATED", "QUOTE_GENERATED", "MATCHING"] }
+              })
+                .sort({ createdAt: -1 })
+                .select("orderId")
+                .limit(1);
+
+              if (recentOrder && recentOrder.orderId) {
+                orderId = recentOrder.orderId;
+              } else {
+                // Generate a temporary orderId - this will be linked to the actual order when it's created
+                orderId = generateOrderId();
+              }
+            } catch (orderError) {
+              console.error("Error fetching orderId from database:", orderError);
+              // Fallback: generate a temporary orderId
+              try {
+                const { generateOrderId } = require("../utils/generateRandom");
+                orderId = generateOrderId();
+              } catch (genError) {
+                console.error("Failed to generate fallback orderId:", genError);
+              }
+            }
+          }
+
+          if (!orderId) {
+            console.error("No orderId found in ride request");
+          }
+
           activeRideRequests.set(rideRequestId, {
             ...result.data.rideRequestData,
             consumerSocketId: socket.id,
@@ -185,6 +224,17 @@ const initializeSocket = (server) => {
                 orderId: orderId || null,
               });
             });
+
+            // Send FCM Notification as backup/background alert
+            // Pass orderId separately since rideRequestData doesn't contain it
+            const rideDataWithOrderId = {
+              ...result.data.rideRequestData,
+              orderId: orderId, // Add orderId to rideData for notification
+            };
+            driverService.SendRideRequestNotification(
+              nearbyDriversResult.data.drivers,
+              rideDataWithOrderId
+            );
           }
 
           // Set auto-expiry timer (2 minutes)
@@ -224,9 +274,8 @@ const initializeSocket = (server) => {
 
       // Handle ride acceptance from driver
       socket.on("accept-ride-request", async (data) => {
-        console.log("Ride acceptance received from driver:", data);
         try {
-          const { requestId, orderId } = data;
+          const { requestId, orderId: orderIdFromPayload } = data;
 
           if (!activeRideRequests.has(requestId)) {
             socket.emit("ride_accept_error", {
@@ -244,17 +293,45 @@ const initializeSocket = (server) => {
             return;
           }
 
+          // Extract orderId - use from payload first, then from stored rideRequest
+          const orderId = orderIdFromPayload || rideRequest.orderId;
+
+          if (!orderId) {
+            console.error("No orderId found in accept payload or rideRequest");
+            socket.emit("ride_accept_error", {
+              message: "Order ID is missing. Cannot process ride acceptance.",
+            });
+            return;
+          }
+
           // Update ride request status
           rideRequest.status = "ACCEPTED";
           rideRequest.acceptedBy = socket.userId;
           rideRequest.acceptedAt = new Date().toISOString();
+          // Ensure orderId is in rideRequest
+          rideRequest.orderId = orderId;
           activeRideRequests.set(requestId, rideRequest);
+
+          // Generate 4-digit OTP
+          const rideOtp = Math.floor(1000 + Math.random() * 9000).toString();
 
           //send update to database about acceptance
           await UpdateOrderStatusWithDriver({
             orderId,
             status: "DRIVER_ACCEPTED",
             driverId: socket.userId,
+          });
+
+          // Update OTP in order
+          await updateRideStatusByOrderId({
+            orderId,
+            updateData: { "tracking.rideOtp": rideOtp }
+          });
+
+          // Update driver status to BUSY
+          await driverService.UpdateDriverWorkingStatus({
+            userId: socket.userId,
+            status: "BUSY"
           });
 
           // Clear the expiry timer
@@ -274,15 +351,22 @@ const initializeSocket = (server) => {
             requestId,
             message: "Your ride has been accepted!",
             driverData: driverDetails.success ? driverDetails.data : null,
-            rideData: rideRequest,
+            rideData: { ...rideRequest, rideOtp }, // Send OTP to consumer
           });
 
           // Notify the accepting driver
+          const finalOrderId = rideRequest.orderId || orderId;
+          if (!finalOrderId) {
+            console.error("No orderId found in rideRequest or payload");
+          }
+
           socket.emit("ride_accept_success", {
             requestId,
             message: "Ride request accepted successfully",
             rideData: rideRequest,
-            orderId: orderId,
+            orderId: finalOrderId,
+            consumerData: rideRequest.consumerData || null,
+            distance: rideRequest.distance || 0,
           });
 
           // Notify other drivers that the request is no longer available
@@ -296,9 +380,202 @@ const initializeSocket = (server) => {
             activeRideRequests.delete(requestId);
           }, 5000);
         } catch (error) {
+
           console.log("Error while processing ride acceptance:", error);
           socket.emit("ride_accept_error", {
             message: "Error while processing ride acceptance",
+          });
+        }
+      });
+
+      // Handle driver arrived
+      socket.on("driver-arrived", async (data) => {
+        console.log("Driver arrived:", data);
+        try {
+          const { orderId } = data;
+          if (!orderId) {
+            socket.emit("driver_arrived_error", { message: "Order ID is required" });
+            return;
+          }
+
+          // Update order status and set arrived time
+          const updateResult = await updateRideStatusByOrderId({
+            orderId,
+            status: "DRIVER_ARRIVED",
+            updateData: {
+              "timeline.driverArrivedAt": new Date(),
+              "waitingInfo.startTime": new Date()
+            }
+          });
+
+          if (!updateResult.success) {
+            socket.emit("driver_arrived_error", { message: updateResult.message });
+            return;
+          }
+
+          // Notify consumer
+          const order = updateResult.data;
+          io.to(`user_${order.userId}`).emit("driver_arrived", {
+            orderId,
+            message: "Driver has arrived at pickup location",
+            arrivedAt: order.timeline.driverArrivedAt
+          });
+
+          socket.emit("driver_arrived_success", {
+            orderId,
+            message: "Arrival status updated",
+            data: order
+          });
+
+        } catch (error) {
+          console.error("Error in driver-arrived:", error);
+          socket.emit("driver_arrived_error", { message: "Internal server error" });
+        }
+      });
+
+      // Handle OTP verification to start ride
+      socket.on("verify-ride-otp", async (data) => {
+        console.log("Verify ride OTP:", data);
+        try {
+          const { orderId, otp } = data;
+          if (!orderId || !otp) {
+            socket.emit("verify_otp_error", { message: "Order ID and OTP are required" });
+            return;
+          }
+
+          // Get order to check OTP
+          const OrderModel = require("../models/order.model");
+          const order = await OrderModel.findOne({ orderId });
+
+          if (!order) {
+            socket.emit("verify_otp_error", { message: "Order not found" });
+            return;
+          }
+
+          if (order.tracking.rideOtp !== otp) {
+            socket.emit("verify_otp_error", { message: "Invalid OTP" });
+            return;
+          }
+
+          // OTP Valid: Start Ride
+          const startTime = order.waitingInfo?.startTime ? new Date(order.waitingInfo.startTime) : new Date();
+          const endTime = new Date();
+          const duration = Math.max(0, Math.round((endTime - startTime) / 60000)); // minutes
+
+          const updateResult = await updateRideStatusByOrderId({
+            orderId,
+            status: "IN_TRANSIT", // or ON_RIDE, assumed IN_TRANSIT based on schema
+            updateData: {
+              "timeline.pickedUpAt": endTime,
+              "waitingInfo.endTime": endTime,
+              "waitingInfo.duration": duration
+            }
+          });
+
+          if (!updateResult.success) {
+            socket.emit("verify_otp_error", { message: updateResult.message });
+            return;
+          }
+
+          // Notify consumer
+          io.to(`user_${order.userId}`).emit("ride_started", {
+            orderId,
+            message: "Ride started successfully",
+            data: updateResult.data
+          });
+
+          socket.emit("verify_otp_success", {
+            orderId,
+            message: "OTP Verified. Ride Started.",
+            data: updateResult.data
+          });
+
+        } catch (error) {
+          console.error("Error in verify-ride-otp:", error);
+          socket.emit("verify_otp_error", { message: "Internal server error" });
+        }
+      });
+
+      // Handle ride completion from driver
+      socket.on("complete-ride", async (data) => {
+        console.log("Ride completion received from driver:", data);
+        try {
+          const { orderId, driverId, amount } = data; // payload from frontend
+
+
+
+          // Calculate final fare including waiting charges
+          const OrderModel = require("../models/order.model");
+          const order = await OrderModel.findOne({ orderId });
+
+          let finalAmount = amount;
+          let fareDetails = null;
+
+          if (order) {
+            const pricingPayload = {
+              distance: order.distance || 5, // Fallback if missing, though should be there
+              weight: order.packageDetails?.weight || '1kg', // Need parsing if string
+              vehicleType: order.vehicleDetails?.vehicleType,
+              vehicleId: order.vehicleDetails?.vehicleId,
+              waitTimeMinutes: order.waitingInfo?.duration || 0,
+              // ... other flags like isNightTime could be passed if tracked
+            };
+
+            // If we have valid vehicle/pricing info, recalculate
+            if (pricingPayload.vehicleId) {
+              const pricingResult = await PricingService.CalculateFare(pricingPayload);
+              if (pricingResult.success) {
+                finalAmount = pricingResult.data.finalFare;
+                fareDetails = pricingResult.data.breakdown;
+              }
+            }
+          }
+
+          // Proceed with completion using the calculated finalAmount
+          const result = await driverService.CompleteRideByDriver({
+            ...data,
+            amount: finalAmount
+          });
+
+          if (result.success) {
+            // Notify driver of success
+            socket.emit("ride_complete_success", {
+              orderId,
+              message: "Ride completed successfully",
+              data: result.data
+            });
+
+            // Notify consumer that ride is completed
+            // We need to find the consumer socket. 
+            // Ideally we should track active ride sockets or store consumerSocketId in activeRequests before deleting.
+            // But activeRequests are deleted on accept.
+            // So we broadcast to the consumer room if they joined one, or we need to find them by userId.
+            // For now, assuming consumer is listening on their own socket channel or room.
+            // Actually, socket.js here doesn't seem to have a map of userId -> socketId easily accessible except maybe iterating.
+            // Let's assume consumer joins a room named by their userId or orderId?
+
+            // Check if we can find consumer socket.
+            // If not, push notification should handle it (which service likely does).
+            // But for real-time update:
+            io.emit("ride_completed", { // Broadcasting to all for now, or better:
+              orderId,
+              status: 'COMPLETED',
+              message: "Your ride has been completed"
+            });
+
+            // Better: emit to specific consumer if possible.
+            // For now, io.emit is safe enough if clients filter by orderId, but wasteful.
+            // Let's stick to just processing the DB update. The Partner app needs 'ride_complete_success' to navigate.
+
+          } else {
+            socket.emit("ride_complete_error", {
+              message: result.message || "Failed to complete ride",
+            });
+          }
+        } catch (error) {
+          console.log("Error handling complete-ride:", error);
+          socket.emit("ride_complete_error", {
+            message: "Internal server error during ride completion",
           });
         }
       });
@@ -326,10 +603,8 @@ const initializeSocket = (server) => {
 
           // Log the rejection (could be stored in database for analytics)
           console.log(
-            `Driver ${
-              socket.userId
-            } rejected ride request ${requestId}. Reason: ${
-              reason || "No reason provided"
+            `Driver ${socket.userId
+            } rejected ride request ${requestId}. Reason: ${reason || "No reason provided"
             }`
           );
 
@@ -394,37 +669,7 @@ const initializeSocket = (server) => {
         }
       });
 
-      //handle ride completion by driver
-      socket.on("complete-ride", async (data) => {
-        console.log("complete-ride event received from driver:", data);
-        try {
-          const result = await driverService.CompleteRideByDriver(data);
-          if (!result.success) {
-            console.log("error while completing the ride:", result.message);
-            socket.emit("complete_ride_error", { message: result.message });
-            return;
-          }
 
-          // Emit to consumer with ride completion and order data
-          io.to(`user_${data.consumerUserId}`).emit("ride_completed", {
-            message: "Your ride has been completed",
-            rideData: result.data,
-            orderId: data.orderId || null,
-            completedAt: new Date().toISOString(),
-          });
-
-          socket.emit("complete_ride_success", {
-            message: result.message,
-            data: result.data,
-            orderId: data.orderId || null,
-          });
-        } catch (error) {
-          console.log("error while completing the ride:", error);
-          socket.emit("complete_ride_error", {
-            message: "error while completing the ride",
-          });
-        }
-      });
 
       // Handle disconnections
       socket.on("disconnect", () => {

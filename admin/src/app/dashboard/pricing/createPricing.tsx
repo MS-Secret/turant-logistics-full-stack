@@ -21,35 +21,35 @@ import {
   MapPin,
 } from "lucide-react";
 
-const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => void ,refreshData:boolean,setRefreshData:React.Dispatch<React.SetStateAction<boolean>>}) => {
-  const [vehicleType, setVehicleType] = useState(""); // 2 wheeler, 4 wheeler, etc.
-  const [vehicleName, setVehicleName] = useState(""); // e.g.,  "bike","scooter","truck"
-  const [vehicleBodyDetails, setVehicleBodyDetails] = useState({
+const CreatePricing = ({ onClose, refreshData, setRefreshData, initialData }: { onClose: () => void, refreshData: boolean, setRefreshData: React.Dispatch<React.SetStateAction<boolean>>, initialData?: any }) => {
+  const [vehicleType, setVehicleType] = useState(initialData?.vehicleType || "");
+  const [vehicleName, setVehicleName] = useState(initialData?.vehicleName || "");
+  const [vehicleBodyDetails, setVehicleBodyDetails] = useState(initialData?.vehicleBodyDetails || {
     name: "",
     length: "",
     capacity: ""
-  }); // e.g., {"name":"truck 10feet(10ton)","length":"10 feet","capacity":"10ton"}
-  const [vehicleBodyTypes, setVehicleBodyTypes] = useState(""); // e.g., "open","closed"
-  const [vehicleFuelType, setVehicleFuelType] = useState(""); // e.g., "petrol","diesel","electric", "cng"
-  const [minOrderFare, setMinOrderFare] = useState(0);
-  const [distanceSlabs, setDistanceSlabs] = useState([
+  });
+  const [vehicleBodyTypes, setVehicleBodyTypes] = useState(initialData?.vehicleBodyType || "");
+  const [vehicleFuelType, setVehicleFuelType] = useState(initialData?.vehicleFuelType || "");
+  const [minOrderFare, setMinOrderFare] = useState(initialData?.minOrderFare || 0);
+  const [distanceSlabs, setDistanceSlabs] = useState(initialData?.distanceSlabs || [
     { minDistance: 0, maxDistance: 0, farePerKm: 0 }
   ]);
-  const [weightSlabs, setWeightSlabs] = useState([
+  const [weightSlabs, setWeightSlabs] = useState(initialData?.weightSlabs || [
     { minWeight: 0, maxWeight: 0, farePerKg: 0 }
   ]);
-  const [platformSurchargePercentage, setPlatformSurchargePercentage] = useState(0);
-  const [discountPercentage, setDiscountPercentage] = useState(0);
-  const [waitingChargePerMin, setWaitingChargePerMin] = useState(0);
-  const [freeWaitingMinutes, setFreeWaitingMinutes] = useState(0);
-  const [returnTripFeePercentage, setReturnTripFeePercentage] = useState(0);
-  const [nightSurchargePercentage, setNightSurchargePercentage] = useState(0);
-  const [codHandlingFee, setCodHandlingFee] = useState(0);
-  const [loadingCharge,setLoadingCharge] = useState(0);
-  const [offLoadingCharge,setOffLoadingCharge] = useState(0);
-  const [extraHandsCharge,setExtraHandsCharge] = useState(0);
+  const [platformSurchargePercentage, setPlatformSurchargePercentage] = useState(initialData?.platformSurchargePercentage || 0);
+  const [discountPercentage, setDiscountPercentage] = useState(initialData?.discountPercentage || 0);
+  const [waitingChargePerMin, setWaitingChargePerMin] = useState(initialData?.waitingChargePerMin || 0);
+  const [freeWaitingMinutes, setFreeWaitingMinutes] = useState(initialData?.freeWaitingMinutes || 0);
+  const [returnTripFeePercentage, setReturnTripFeePercentage] = useState(initialData?.returnTripFeePercentage || 0);
+  const [nightSurchargePercentage, setNightSurchargePercentage] = useState(initialData?.nightSurchargePercentage || 0);
+  const [codHandlingFee, setCodHandlingFee] = useState(initialData?.codHandlingFee || 0);
+  const [loadingCharge, setLoadingCharge] = useState(initialData?.loadingCharge || 0);
+  const [offLoadingCharge, setOffLoadingCharge] = useState(initialData?.offloadingCharge || 0); // Note: offloadingCharge vs offLoadingCharge casing
+  const [extraHandsCharge, setExtraHandsCharge] = useState(initialData?.extraHandsCharge || 0);
   const [vehicleImage, setVehicleImage] = useState<File | null>(null);
-  const [loading,setLoading]=useState(false);
+  const [loading, setLoading] = useState(false);
 
   // Helper functions for dynamic arrays
   const addDistanceSlab = () => {
@@ -58,12 +58,12 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
 
   const removeDistanceSlab = (index: number) => {
     if (distanceSlabs.length > 1) {
-      setDistanceSlabs(distanceSlabs.filter((_, i) => i !== index));
+      setDistanceSlabs(distanceSlabs.filter((_: any, i: number) => i !== index));
     }
   };
 
   const updateDistanceSlab = (index: number, field: string, value: number) => {
-    const updated = distanceSlabs.map((slab, i) => 
+    const updated = distanceSlabs.map((slab: any, i: number) =>
       i === index ? { ...slab, [field]: value } : slab
     );
     setDistanceSlabs(updated);
@@ -75,16 +75,17 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
 
   const removeWeightSlab = (index: number) => {
     if (weightSlabs.length > 1) {
-      setWeightSlabs(weightSlabs.filter((_, i) => i !== index));
+      setWeightSlabs(weightSlabs.filter((_: any, i: number) => i !== index));
     }
   };
 
   const updateWeightSlab = (index: number, field: string, value: number) => {
-    const updated = weightSlabs.map((slab, i) => 
+    const updated = weightSlabs.map((slab: any, i: number) =>
       i === index ? { ...slab, [field]: value } : slab
     );
     setWeightSlabs(updated);
   };
+  // ...
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -93,41 +94,52 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
     }
   };
 
-  const handleSubmit=async()=>{
+  const handleSubmit = async () => {
     setLoading(true);
-    try{
-      const payload=new FormData();
-      payload.append("vehicleType",vehicleType);
-      payload.append("vehicleName",vehicleName);
-      payload.append("vehicleBodyDetails",JSON.stringify(vehicleBodyDetails));
-      payload.append("vehicleBodyTypes",vehicleBodyTypes);
-      payload.append("vehicleFuelType",vehicleFuelType);
-      payload.append("minOrderFare",minOrderFare.toString());
-      payload.append("distanceSlabs",JSON.stringify(distanceSlabs));
-      payload.append("weightSlabs",JSON.stringify(weightSlabs));
-      payload.append("platformSurchargePercentage",platformSurchargePercentage.toString());
-      payload.append("discountPercentage",discountPercentage.toString());
-      payload.append("waitingChargePerMin",waitingChargePerMin.toString());
-      payload.append("freeWaitingMinutes",freeWaitingMinutes.toString());
-      payload.append("returnTripFeePercentage",returnTripFeePercentage.toString());
-      payload.append("nightSurchargePercentage",nightSurchargePercentage.toString());
-      payload.append("codHandlingFee",codHandlingFee.toString());
-      payload.append("loadingCharge",loadingCharge.toString());
-      payload.append("offLoadingCharge",offLoadingCharge.toString());
-      payload.append("extraHandsCharge",extraHandsCharge.toString());
-      if(vehicleImage){
-        payload.append("vehicleImage",vehicleImage);
+    try {
+      const payload = new FormData();
+      payload.append("vehicleType", vehicleType);
+      payload.append("vehicleName", vehicleName);
+      payload.append("vehicleBodyDetails", JSON.stringify(vehicleBodyDetails));
+      payload.append("vehicleBodyType", vehicleBodyTypes); // fixed key name to match backend model if needed, check consistent usage
+      payload.append("vehicleFuelType", vehicleFuelType);
+      payload.append("minOrderFare", minOrderFare.toString());
+      payload.append("distanceSlabs", JSON.stringify(distanceSlabs));
+      payload.append("weightSlabs", JSON.stringify(weightSlabs));
+      payload.append("platformSurchargePercentage", platformSurchargePercentage.toString());
+      payload.append("discountPercentage", discountPercentage.toString());
+      payload.append("waitingChargePerMin", waitingChargePerMin.toString());
+      payload.append("freeWaitingMinutes", freeWaitingMinutes.toString());
+      payload.append("returnTripFeePercentage", returnTripFeePercentage.toString());
+      payload.append("nightSurchargePercentage", nightSurchargePercentage.toString());
+      payload.append("codHandlingFee", codHandlingFee.toString());
+      payload.append("loadingCharge", loadingCharge.toString());
+      payload.append("offloadingCharge", offLoadingCharge.toString()); // consistent naming
+      payload.append("extraHandsCharge", extraHandsCharge.toString());
+      if (vehicleImage) {
+        payload.append("vehicleImage", vehicleImage);
+      } else if (initialData?.vehicleImageUrl) {
+        // If editing and no new image, we might not need to send anything, 
+        // or backend should handle not updating if key is missing.
+        // Usually FormData without the key is fine.
       }
-      const response=await PricingService.CreatePricing(payload);
-      if(response?.status===200 || response?.status===201){
-        toast.success("Pricing created successfully");
+
+      let response;
+      if (initialData?._id) {
+        response = await PricingService.UpdatePricing(initialData._id, payload);
+      } else {
+        response = await PricingService.CreatePricing(payload);
+      }
+
+      if (response?.status === 200 || response?.status === 201) {
+        toast.success(initialData ? "Pricing updated successfully" : "Pricing created successfully");
         setRefreshData(!refreshData);
         onClose();
       }
-    }catch(error){
-      console.error("Error creating pricing:", error);
-      toast.error("Failed to create pricing. Please try again.");
-    }finally{
+    } catch (error: any) {
+      console.error("Error saving pricing:", error);
+      toast.error(initialData ? "Failed to update pricing." : "Failed to create pricing.");
+    } finally {
       setLoading(false);
     }
   }
@@ -137,13 +149,14 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
       {/* Header */}
       <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Create New Pricing Rule</h2>
+          <h2 className="text-2xl font-bold text-gray-900">{initialData ? "Edit Pricing Rule" : "Create New Pricing Rule"}</h2>
           <p className="text-gray-600 mt-1">Configure vehicle pricing and rates</p>
         </div>
-       
+
       </div>
 
       <div className=" overflow-y-auto pr-2">
+
         <div className="space-y-8">
           {/* Vehicle Information Section */}
           <div className="bg-gray-50 rounded-xl p-6">
@@ -153,10 +166,10 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
               </div>
               <h3 className="text-lg font-semibold text-gray-900">Vehicle Information</h3>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label  htmlFor="vehicleType">Vehicle Type *</Label>
+                <Label htmlFor="vehicleType">Vehicle Type *</Label>
                 <select
                   id="vehicleType"
                   value={vehicleType}
@@ -164,17 +177,19 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="">Select vehicle type</option>
-                  <option value="2 wheeler">2 Wheeler</option>
-                  <option value="3 wheeler">3 Wheeler</option>
-                  <option value="4 wheeler">4 Wheeler</option>
-                  <option value="6 wheeler">6 Wheeler</option>
-                  <option value="8 wheeler">8 Wheeler</option>
-                  <option value="10 wheeler">10 Wheeler</option>
+                  <option value="2 Wheeler">2 Wheeler</option>
+                  <option value="3 Wheeler (Passenger Auto/e-rickshaw)">3 Wheeler (Passenger Auto/e-rickshaw)</option>
+                  <option value="3 wheeler">3 wheeler</option>
+                  <option value="Piaggio like model">Piaggio like model</option>
+                  <option value="4 wheeler">4 wheeler</option>
+                  <option value="Tata Ace like (upto 1500 kg)">Tata Ace like (upto 1500 kg)</option>
+                  <option value="Mahindra like (upto 2 Ton)">Mahindra like (upto 2 Ton)</option>
+                  <option value="Intercity">Intercity</option>
                 </select>
               </div>
 
               <div className="space-y-2">
-                <Label  htmlFor="vehicleName">Vehicle Name *</Label>
+                <Label htmlFor="vehicleName">Vehicle Name *</Label>
                 <Input
                   id="vehicleName"
                   value={vehicleName}
@@ -184,7 +199,7 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
               </div>
 
               <div className="space-y-2">
-                <Label  htmlFor="bodyType">Body Type</Label>
+                <Label htmlFor="bodyType">Body Type</Label>
                 <select
                   id="bodyType"
                   value={vehicleBodyTypes}
@@ -200,7 +215,7 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
               </div>
 
               <div className="space-y-2">
-                <Label  htmlFor="fuelType">Fuel Type</Label>
+                <Label htmlFor="fuelType">Fuel Type</Label>
                 <select
                   id="fuelType"
                   value={vehicleFuelType}
@@ -222,29 +237,29 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
               <Label >Vehicle Body Details</Label>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border border-gray-200 rounded-lg">
                 <div className="space-y-2">
-                  <Label  htmlFor="bodyName">Body Name</Label>
+                  <Label htmlFor="bodyName">Body Name</Label>
                   <Input
                     id="bodyName"
                     value={vehicleBodyDetails.name}
-                    onChange={(e) => setVehicleBodyDetails({...vehicleBodyDetails, name: e.target.value})}
+                    onChange={(e) => setVehicleBodyDetails({ ...vehicleBodyDetails, name: e.target.value })}
                     placeholder="e.g., truck 10feet(10ton)"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label  htmlFor="bodyLength">Length</Label>
+                  <Label htmlFor="bodyLength">Length</Label>
                   <Input
                     id="bodyLength"
                     value={vehicleBodyDetails.length}
-                    onChange={(e) => setVehicleBodyDetails({...vehicleBodyDetails, length: e.target.value})}
+                    onChange={(e) => setVehicleBodyDetails({ ...vehicleBodyDetails, length: e.target.value })}
                     placeholder="e.g., 10 feet"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label  htmlFor="bodyCapacity">Capacity</Label>
+                  <Label htmlFor="bodyCapacity">Capacity</Label>
                   <Input
                     id="bodyCapacity"
                     value={vehicleBodyDetails.capacity}
-                    onChange={(e) => setVehicleBodyDetails({...vehicleBodyDetails, capacity: e.target.value})}
+                    onChange={(e) => setVehicleBodyDetails({ ...vehicleBodyDetails, capacity: e.target.value })}
                     placeholder="e.g., 10ton"
                   />
                 </div>
@@ -253,9 +268,9 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
 
             {/* Vehicle Image Upload */}
             <div className="mt-4">
-              <Label  htmlFor="vehicleImage">Vehicle Image</Label>
+              <Label htmlFor="vehicleImage">Vehicle Image</Label>
               <div className="mt-2 flex items-center justify-center w-full">
-                <label 
+                <label
                   htmlFor="vehicleImage"
                   className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
                 >
@@ -289,7 +304,7 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label  htmlFor="minOrderFare">Minimum Order Fare (₹) *</Label>
+                <Label htmlFor="minOrderFare">Minimum Order Fare (₹) *</Label>
                 <Input
                   id="minOrderFare"
                   type="number"
@@ -323,11 +338,11 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
             </div>
 
             <div className="space-y-3">
-              {distanceSlabs.map((slab, index) => (
+              {distanceSlabs.map((slab: any, index: number) => (
                 <div key={index} className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
                   <div className="flex-1 grid grid-cols-3 gap-3">
                     <div>
-                      <Label  className="text-xs">Min Distance (km)</Label>
+                      <Label className="text-xs">Min Distance (km)</Label>
                       <Input
                         type="number"
                         value={slab.minDistance}
@@ -338,7 +353,7 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
                       />
                     </div>
                     <div>
-                      <Label  className="text-xs">Max Distance (km)</Label>
+                      <Label className="text-xs">Max Distance (km)</Label>
                       <Input
                         type="number"
                         value={slab.maxDistance}
@@ -349,7 +364,7 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
                       />
                     </div>
                     <div>
-                      <Label  className="text-xs">Fare per KM (₹)</Label>
+                      <Label className="text-xs">Fare per KM (₹)</Label>
                       <Input
                         type="number"
                         value={slab.farePerKm}
@@ -397,11 +412,11 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
             </div>
 
             <div className="space-y-3">
-              {weightSlabs.map((slab, index) => (
+              {weightSlabs.map((slab: any, index: number) => (
                 <div key={index} className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
                   <div className="flex-1 grid grid-cols-3 gap-3">
                     <div>
-                      <Label  className="text-xs">Min Weight (kg)</Label>
+                      <Label className="text-xs">Min Weight (kg)</Label>
                       <Input
                         type="number"
                         value={slab.minWeight}
@@ -412,7 +427,7 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
                       />
                     </div>
                     <div>
-                      <Label  className="text-xs">Max Weight (kg)</Label>
+                      <Label className="text-xs">Max Weight (kg)</Label>
                       <Input
                         type="number"
                         value={slab.maxWeight}
@@ -423,7 +438,7 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
                       />
                     </div>
                     <div>
-                      <Label  className="text-xs">Fare per KG (₹)</Label>
+                      <Label className="text-xs">Fare per KG (₹)</Label>
                       <Input
                         type="number"
                         value={slab.farePerKg}
@@ -461,7 +476,7 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label  htmlFor="platformSurcharge">Platform Surcharge (%)</Label>
+                <Label htmlFor="platformSurcharge">Platform Surcharge (%)</Label>
                 <Input
                   id="platformSurcharge"
                   type="number"
@@ -474,7 +489,7 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
               </div>
 
               <div className="space-y-2">
-                <Label  htmlFor="discount">Discount (%)</Label>
+                <Label htmlFor="discount">Discount (%)</Label>
                 <Input
                   id="discount"
                   type="number"
@@ -487,7 +502,7 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
               </div>
 
               <div className="space-y-2">
-                <Label  htmlFor="nightSurcharge">Night Surcharge (%)</Label>
+                <Label htmlFor="nightSurcharge">Night Surcharge (%)</Label>
                 <Input
                   id="nightSurcharge"
                   type="number"
@@ -500,7 +515,7 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
               </div>
 
               <div className="space-y-2">
-                <Label  htmlFor="returnTrip">Return Trip Fee (%)</Label>
+                <Label htmlFor="returnTrip">Return Trip Fee (%)</Label>
                 <Input
                   id="returnTrip"
                   type="number"
@@ -513,7 +528,7 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
               </div>
 
               <div className="space-y-2">
-                <Label  htmlFor="codFee">COD Handling Fee (₹)</Label>
+                <Label htmlFor="codFee">COD Handling Fee (₹)</Label>
                 <Input
                   id="codFee"
                   type="number"
@@ -537,7 +552,7 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label  htmlFor="waitingCharge">Waiting Charge per Min (₹)</Label>
+                <Label htmlFor="waitingCharge">Waiting Charge per Min (₹)</Label>
                 <Input
                   id="waitingCharge"
                   type="number"
@@ -549,7 +564,7 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
               </div>
 
               <div className="space-y-2">
-                <Label  htmlFor="freeWaiting">Free Waiting Minutes</Label>
+                <Label htmlFor="freeWaiting">Free Waiting Minutes</Label>
                 <Input
                   id="freeWaiting"
                   type="number"
@@ -561,7 +576,7 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
               </div>
 
               <div className="space-y-2">
-                <Label  htmlFor="loadingCharge">Loading Charge (₹)</Label>
+                <Label htmlFor="loadingCharge">Loading Charge (₹)</Label>
                 <Input
                   id="loadingCharge"
                   type="number"
@@ -573,7 +588,7 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
               </div>
 
               <div className="space-y-2">
-                <Label  htmlFor="offLoadingCharge">Off-loading Charge (₹)</Label>
+                <Label htmlFor="offLoadingCharge">Off-loading Charge (₹)</Label>
                 <Input
                   id="offLoadingCharge"
                   type="number"
@@ -585,7 +600,7 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
               </div>
 
               <div className="space-y-2">
-                <Label  htmlFor="extraHandsCharge">Extra Hands Charge (₹)</Label>
+                <Label htmlFor="extraHandsCharge">Extra Hands Charge (₹)</Label>
                 <Input
                   id="extraHandsCharge"
                   type="number"
@@ -617,12 +632,12 @@ const CreatePricing = ({ onClose,refreshData,setRefreshData }: { onClose: () => 
           {loading ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Creating...
+              {initialData ? "Updating..." : "Creating..."}
             </>
           ) : (
             <>
               <Plus className="w-4 h-4 mr-2" />
-              Create Pricing Rule
+              {initialData ? "Update Pricing Rule" : "Create Pricing Rule"}
             </>
           )}
         </Button>

@@ -38,7 +38,7 @@ const orderSchema = createBaseSchema({
     ],
     default: 'CREATED'
   },
-  receiverDetails:{
+  receiverDetails: {
     name: {
       type: String,
       required: false,
@@ -52,12 +52,12 @@ const orderSchema = createBaseSchema({
       // enum: ['home', 'work', 'other'],
       default: 'home'
     },
-    location:{
-      latitude:{
+    location: {
+      latitude: {
         type: Number,
         required: false,
       },
-      longitude:{
+      longitude: {
         type: Number,
         required: false,
       },
@@ -67,7 +67,7 @@ const orderSchema = createBaseSchema({
       },
     }
   },
-  senderDetails:{
+  senderDetails: {
     name: {
       type: String,
       required: false,
@@ -81,12 +81,12 @@ const orderSchema = createBaseSchema({
       // enum: ['home', 'work', 'other'],
       default: 'home'
     },
-    location:{
-      latitude:{
+    location: {
+      latitude: {
         type: Number,
         required: false,
       },
-      longitude:{
+      longitude: {
         type: Number,
         required: false,
       },
@@ -97,7 +97,7 @@ const orderSchema = createBaseSchema({
     }
   },
   vehicleDetails: {
-    vehicleId:{
+    vehicleId: {
       type: String,
       required: false,
     },
@@ -115,23 +115,23 @@ const orderSchema = createBaseSchema({
     },
   },
   packageDetails: {
-    height:{
+    height: {
       type: String,
       required: false,
     },
-    width:{
+    width: {
       type: String,
       required: false,
     },
-    length:{
+    length: {
       type: String,
       required: false,
     },
-    weight:{
+    weight: {
       type: String,
       required: false,
     },
-    packageImage:{
+    packageImage: {
       type: String,
       required: false,
     }
@@ -162,6 +162,7 @@ const orderSchema = createBaseSchema({
     createdAt: Date,
     confirmedAt: Date,
     driverAssignedAt: Date,
+    driverArrivedAt: Date,
     pickupScheduledAt: Date,
     pickedUpAt: Date,
     deliveredAt: Date,
@@ -174,7 +175,15 @@ const orderSchema = createBaseSchema({
     pickupImages: [String],
     deliveryImages: [String],
     driverNotes: String,
-    customerNotes: String
+    customerNotes: String,
+    rideOtp: String // OTP for starting the ride
+  },
+  waitingInfo: {
+    startTime: Date, // When driver arrived
+    endTime: Date,   // When ride started (OTP verified)
+    duration: Number, // In minutes
+    cost: Number,
+    paid: { type: Boolean, default: false }
   },
   cancellation: {
     cancelledBy: {

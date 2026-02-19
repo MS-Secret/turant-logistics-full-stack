@@ -28,7 +28,8 @@ const UserSchema = createBaseSchema({
   phone: {
     type: String,
     required: false,
-    unique: true,
+    // Removed unique: true to allow same phone with different roles
+    // We'll use compound unique index { phone: 1, role: 1 } instead
     match: [/^\+[1-9]\d{1,14}$/, 'Please enter a valid phone number with country code (e.g., +919876543210)']
   },
   password: {
@@ -138,6 +139,10 @@ const UserSchema = createBaseSchema({
 
 // Indexes for better performance
 UserSchema.index({ email: 1 });
+
+// Compound unique index: same phone can exist with different roles
+// This allows phone +916204467755 with role USER and also with role ADMIN/DRIVER
+UserSchema.index({ phone: 1, role: 1 }, { unique: true, sparse: true });
 
 
 // Pre-save middleware to hash password
