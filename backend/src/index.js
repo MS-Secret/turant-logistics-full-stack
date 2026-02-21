@@ -12,6 +12,7 @@ const mainRoutes = require("./routes/main.routes");
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const { createDefaultAdmin } = require("./services/auth.service");
+const { DispatchScheduledCampaigns } = require("./services/campaign.service");
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -188,6 +189,16 @@ async function startServer() {
       logger.info(`JWT secret: ${process.env.JWT_SECRET ? 'Set' : 'Not set'}`);
       logger.info(`Rate limit window: ${process.env.RATE_LIMIT_WINDOW_MS} ms`);
       logger.info(`Max requests: ${process.env.RATE_LIMIT_MAX_REQUESTS}`);
+
+      // Start the scheduled campaigns dispatcher (runs every minute)
+      setInterval(async () => {
+        try {
+          await DispatchScheduledCampaigns();
+        } catch (err) {
+          logger.error("Error in DispatchScheduledCampaigns interval:", err);
+        }
+      }, 60 * 1000);
+
     });
   } catch (error) {
     console.error('Failed to start server:', error);

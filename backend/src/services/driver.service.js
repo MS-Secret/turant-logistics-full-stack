@@ -4,6 +4,7 @@ const User = require("../models/user.model");
 const { filterDriversByRadius } = require("../utils/locationUtils");
 const { UploadToCloudinary } = require("../config/cloudinaryConfig");
 const KYCModel = require("../models/kyc.model");
+const NotificationModel = require("../models/notification.model");
 const { UpdateOrderStatusWithDriver } = require("./order.service");
 const { GetKycDetails } = require("./kyc.service");
 
@@ -482,6 +483,23 @@ const SendRideRequestToDrivers = async (payload) => {
 
     // Send push notifications to drivers
     const users = await User.find({ userId: { $in: targetUserIds } });
+
+    // Save notifications to Database
+    if (targetUserIds && targetUserIds.length > 0) {
+      const notificationDocs = targetUserIds.map(uid => ({
+        userId: uid,
+        title: "New Ride Request",
+        message: `New ride request from ${consumer?.firstName || "Customer"}`,
+        type: 'order',
+        read: false
+      }));
+      try {
+        await NotificationModel.insertMany(notificationDocs);
+      } catch (dbErr) {
+        console.error("Error saving ride request notifications to DB:", dbErr);
+      }
+    }
+
     await sendToMultipleDevices(
       users.flatMap(
         (user) =>
@@ -616,8 +634,7 @@ const ResetDailyEarnings = async () => {
 const AddDriverDetails = async (payload) => {
   try {
     console.log("Payload in service:", payload);
-    const { name, licenseNumber, userId, licenseDocument, phoneNumber } =
-      payload;
+    const { name, licenseNumber, userId, licenseDocument, phoneNumber, accountHolderName, accountNumber, ifscCode, passbookDocument } = payload;
 
     if (!name || !licenseNumber) {
       return {
@@ -629,6 +646,15 @@ const AddDriverDetails = async (payload) => {
       licenseDocument,
       "driverLicense"
     );
+
+    let passbookDocumentUrl = null;
+    if (passbookDocument) {
+      passbookDocumentUrl = await UploadToCloudinary(
+        passbookDocument,
+        "driverPassbook"
+      );
+    }
+
     const KYCApplication = await KYCModel.findOneAndUpdate(
       { userId },
       {
@@ -637,12 +663,16 @@ const AddDriverDetails = async (payload) => {
           "driver.licenseNumber": licenseNumber,
           "driver.licenseImageUrl": licenseDocumentUrl,
           "driver.phoneNumber": phoneNumber,
+          "driver.bankDetails.accountHolderName": accountHolderName,
+          "driver.bankDetails.accountNumber": accountNumber,
+          "driver.bankDetails.ifscCode": ifscCode,
+          "driver.bankDetails.passbookImageUrl": passbookDocumentUrl,
           status: "pending", // Explicitly set status to pending
-          stepCompleted: 3,
         },
       },
       { new: true }
     );
+
     if (!KYCApplication) {
       return {
         success: false,
@@ -716,10 +746,10 @@ const SendRideRequestNotification = async (drivers, rideData) => {
     // rideData now includes orderId (added in socket.js before calling this function)
     const title = "New Ride Request 🚖";
     const body = `Pickup: ${rideData.pickupLocation?.address || 'Unknown Location'} - Fare: ₹${rideData.estimatedFare || 0}`;
-    
+
     // Extract consumerData if it exists in rideData, otherwise use empty object
     const consumerData = rideData.consumerData || {};
-    
+
     const data = {
       type: "RIDE_REQUEST",
       rideRequestId: rideData.requestId || "",
@@ -727,10 +757,26 @@ const SendRideRequestNotification = async (drivers, rideData) => {
       rideRequestData: JSON.stringify(rideData), // Include full rideData with orderId
       consumerData: JSON.stringify(consumerData), // Include consumer data
     };
-    
+
     console.log("FCM Notification data - orderId:", data.orderId, "rideRequestId:", data.rideRequestId);
 
     console.log(`Sending FCM notification to ${fcmTokens.length} devices`);
+
+    // Save notifications to Database
+    if (userIds && userIds.length > 0) {
+      const notificationDocs = userIds.map(uid => ({
+        userId: uid,
+        title: title,
+        message: body,
+        type: 'order',
+        read: false
+      }));
+      try {
+        await NotificationModel.insertMany(notificationDocs);
+      } catch (dbErr) {
+        console.error("Error saving ride request notifications to DB:", dbErr);
+      }
+    }
 
     // Send notification
     await sendToMultipleDevices(fcmTokens, { title, body }, data);

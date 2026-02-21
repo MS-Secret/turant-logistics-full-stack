@@ -1,4 +1,4 @@
-const mongoose=require("mongoose");
+const mongoose = require("mongoose");
 const { baseSchema, createBaseSchema } = require("./base.model");
 
 /**
@@ -12,52 +12,52 @@ const { baseSchema, createBaseSchema } = require("./base.model");
  * 7. Round Total Fare to nearest ₹1 (App Fare)
  */
 
-const PricingSchema =createBaseSchema({
+const PricingSchema = createBaseSchema({
     // Vehicle Information
-    vehicleType:{
-        type:String,
-        required:true,
+    vehicleType: {
+        type: String,
+        required: true,
         enum: ['2 Wheeler', '3 Wheeler (Passenger Auto/e-rickshaw)', '3 wheeler', 'Piaggio like model', '4 wheeler', 'Tata Ace like (upto 1500 kg)', 'Mahindra like (upto 2 Ton)', 'Intercity']
     },
-    vehicleName:{
-        type:String,
-        required:true,
+    vehicleName: {
+        type: String,
+        required: true,
     },
-    vehicleImageUrl:{
-        type:String,
-        required:false,
+    vehicleImageUrl: {
+        type: String,
+        required: false,
     },
-    vehicleBodyDetails:{
-      name:{
-        type:String,
-        required:false,
-      },
-      length:{
-        type:String,
-        required:false,
-      },
-      capacity:{
-        type:String,
-        required:false,
-      }
+    vehicleBodyDetails: {
+        name: {
+            type: String,
+            required: false,
+        },
+        length: {
+            type: String,
+            required: false,
+        },
+        capacity: {
+            type: String,
+            required: false,
+        }
     },
-    vehicleBodyType:{
-      type:String,
-      required:false,
+    vehicleBodyType: {
+        type: String,
+        required: false,
     },
-    vehicleFuelType:{
-      type:String,
-      required:false,
+    vehicleFuelType: {
+        type: String,
+        required: false,
     },
 
     // Base Pricing
-    minOrderFare:{
-        type:Number,
-        required:true
+    minOrderFare: {
+        type: Number,
+        required: true
     },
-    
+
     // Distance-based Pricing
-    distanceSlabs:[{
+    distanceSlabs: [{
         minDistance: {
             type: Number,
             required: true
@@ -71,9 +71,9 @@ const PricingSchema =createBaseSchema({
             required: true
         }
     }],
-    
+
     // Weight-based Pricing
-    weightSlabs:[{
+    weightSlabs: [{
         minWeight: {
             type: Number,
             required: true
@@ -88,85 +88,85 @@ const PricingSchema =createBaseSchema({
             default: 0
         }
     }],
-    
+
     // Platform Charges
-    platformSurchargePercentage:{
+    platformSurchargePercentage: {
         type: Number,
         required: true,
         default: 12 // 12% as per table
     },
-    
+
     // Discounts and Promotions
-    discountPercentage:{
+    discountPercentage: {
         type: Number,
         required: false,
         default: 0
     },
-    promoCode:{
+    promoCode: {
         type: String,
         required: false
     },
-    
+
     // Waiting Charges
-    waitingChargePerMin:{
+    waitingChargePerMin: {
         type: Number,
         required: true,
         default: 2 // ₹2 per minute after 5 minutes
     },
-    freeWaitingMinutes:{
+    freeWaitingMinutes: {
         type: Number,
         required: true,
         default: 5 // First 5 minutes free
     },
-    
+
     // Optional Charges
-    returnTripFeePercentage:{
+    returnTripFeePercentage: {
         type: Number,
         required: false,
         default: 70 // 70% of base fare if customer requests pickup + return
     },
-    nightSurchargePercentage:{
+    nightSurchargeAmount: {
         type: Number,
         required: false,
-        default: 10 // 10% night surcharge (9pm to 7am)
+        default: 20 // Flat Night Surcharge (₹20)
     },
-    codHandlingFee:{
+    codHandlingFee: {
         type: Number,
         required: false,
         default: 10 // ₹10-20 for cash fragile items loading/offloading
     },
-    
+
     // Loading/Offloading charges
-    loadingCharge:{
+    loadingCharge: {
         type: Number,
         required: false,
         default: 0
     },
-    offloadingCharge:{
+    offloadingCharge: {
         type: Number,
         required: false,
         default: 0
     },
-    
+
     // Extra charges for hands
-    extraHandsCharge:{
+    extraHandsCharge: {
         type: Number,
         required: false,
         default: 100 // ₹100 for extra hands
     },
-    
+
     // Status flags
-    isActive:{
-        type:Boolean,
-        required:false,
-        default:true
+    isActive: {
+        type: Boolean,
+        required: false,
+        default: true
     },
-    isDelete:{
-        type:Boolean,
-        required:false,
-        default:false
+    isDelete: {
+        type: Boolean,
+        required: false,
+        default: false
     }
-    
+
 })
 
-module.exports=mongoose.model("Pricing",PricingSchema);
+module.exports = mongoose.model("Pricing", PricingSchema);

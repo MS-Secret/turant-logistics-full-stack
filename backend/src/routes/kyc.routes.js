@@ -13,7 +13,7 @@ const upload = multer({
 });
 
 
-Router.post("/update-status/:userId", verifyToken,upload.single("document"), UpdateKycStatus);
+Router.post("/update-status/:userId", verifyToken, upload.single("document"), UpdateKycStatus);
 
 
 //getting the kyc details
@@ -53,7 +53,10 @@ Router.post(
 Router.post(
   "/driver-details",
   verifyToken,
-  upload.single("licenseDocument"),
+  upload.fields([
+    { name: "licenseDocument", maxCount: 1 },
+    { name: "passbookDocument", maxCount: 1 }
+  ]),
   CreateDriverDetails
 );
 

@@ -14,6 +14,7 @@ const CreateTransaction = async (payload) => {
       vehicleDetails,
       userId,
       payment,
+      distance,
     } = payload;
     console.log("Creating transaction payload:", payload);
 
@@ -58,6 +59,7 @@ const CreateTransaction = async (payload) => {
     const order = await Order.create({
       orderId,
       userId,
+      distance,
       receiverDetails: {
         name: receiverDetails.name,
         mobile: receiverDetails.mobile,
@@ -94,9 +96,9 @@ const CreateTransaction = async (payload) => {
         method:
           payment.method === "Online Payment"
             ? "ONLINE"
-            : payment.method === "Cash"
-            ? "CASH"
-            : "WALLET",
+            : payment.method?.includes("Cash")
+              ? "CASH"
+              : "WALLET",
       },
       pricing: {
         totalAmount: payment.amount,
@@ -116,9 +118,9 @@ const CreateTransaction = async (payload) => {
       modeOfPayment:
         payment.method === "Online Payment"
           ? "ONLINE"
-          : payment.method === "Cash"
-          ? "CASH"
-          : "WALLET",
+          : payment.method?.includes("Cash")
+            ? "CASH"
+            : "WALLET",
       status: "PENDING",
       sender: userId,
       receiver: "",
@@ -209,7 +211,7 @@ const CreateTransaction = async (payload) => {
       }
     }
 
-    if (payment.method === "Cash") {
+    if (payment.method?.includes("Cash")) {
       // Handle cash payment logic here
       console.log("Cash payment selected for order:", order.orderId);
 
@@ -347,6 +349,15 @@ const VerifyTransaction = async (payload) => {
             paymentData.paymentId || transaction.cashfreePaymentId,
         },
         { new: true }
+      );
+
+      // Synchoronize payment status to the Order Model
+      await Order.findOneAndUpdate(
+        { orderId: transaction.metaData.orderId },
+        {
+          "payment.status": newStatus,
+          ...(newStatus === "COMPLETED" ? { "payment.paidAt": new Date() } : {})
+        }
       );
 
       return {

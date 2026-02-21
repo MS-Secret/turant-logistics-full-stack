@@ -1,6 +1,50 @@
 const OrderModel = require("../models/order.model");
 const transactionsModel = require("../models/transactions.model");
+const User = require("../models/user.model");
+const NotificationModel = require("../models/notification.model");
+const { sendToMultipleDevices } = require("../config/firebase.config");
 const { getUserById } = require("./user.service");
+const cashfreeService = require("./cashfree.service");
+
+const sendRideEventNotification = async (userId, title, body, orderId) => {
+  try {
+    const user = await User.findOne({ userId });
+    if (!user) return;
+
+    let fcmTokens = [];
+    if (user.metadata && user.metadata.deviceInfo) {
+      user.metadata.deviceInfo.forEach(device => {
+        if (device.fcmToken) {
+          fcmTokens.push(device.fcmToken);
+        }
+      });
+    }
+
+    if (fcmTokens.length > 0) {
+      await NotificationModel.create({
+        userId,
+        title,
+        message: body,
+        type: "RIDE_UPDATE",
+        read: false
+      });
+
+      const payload = {
+        title,
+        body,
+        data: {
+          type: "RIDE_UPDATE",
+          orderId: orderId?.toString() || "",
+          timestamp: new Date().toISOString()
+        }
+      };
+      await sendToMultipleDevices(fcmTokens, payload);
+      console.log(`Notification sent to User ${userId}: ${title}`);
+    }
+  } catch (err) {
+    console.error("Error sending ride event notification:", err);
+  }
+};
 
 const getAllOrders = async (payload) => {
   try {
@@ -231,10 +275,50 @@ const UpdateOrderStatusWithDriver = async (payload) => {
       {
         status: status || "DRIVER_ACCEPTED",
         driverId: driverId,
-      }
+      },
+      { new: true }
     );
     if (!updatedOrder) {
       return { success: false, message: "Order not found" };
+    }
+
+    try {
+      const currentStatus = status || updatedOrder.status || "DRIVER_ACCEPTED";
+      if (currentStatus === "DRIVER_ACCEPTED" || currentStatus === "ACCEPTED") {
+        const driver = await getUserById(driverId);
+        const driverName = driver?.data?.firstName ? `${driver.data.firstName} ${driver.data.lastName || ''}`.trim() : "A driver";
+
+        await sendRideEventNotification(
+          updatedOrder.userId,
+          "Ride Confirmed! 🚖",
+          `${driverName} is on the way to pick up your order.`,
+          orderId
+        );
+      } else if (currentStatus === "CANCELLED") {
+        await sendRideEventNotification(
+          updatedOrder.userId,
+          "Ride Cancelled ❌",
+          "Sorry, the driver had to cancel. We are searching for a new driver immediately.",
+          orderId
+        );
+      }
+    } catch (notifErr) {
+      console.error("Error sending order status notification:", notifErr);
+    }
+
+    // Auto-complete payment for CASH/COD orders when ride is completed
+    if (status === "COMPLETED" && (updatedOrder.payment?.method === "CASH" || updatedOrder.payment?.method === "COD")) {
+      updatedOrder.payment.status = "COMPLETED";
+      updatedOrder.payment.paidAt = new Date();
+      await updatedOrder.save();
+    }
+
+    // Trigger Wallet Processing if status is 'COMPLETED'
+    if (status === "COMPLETED") {
+      const walletResult = await require("../services/wallet.service").processOrderPayment(updatedOrder._id);
+      if (!walletResult.success) {
+        console.error("Wallet processing failed for order:", orderId, walletResult.error);
+      }
     }
 
     return {
@@ -315,6 +399,41 @@ const updateRideStatusByOrderId = async (payload) => {
       return { success: false, message: "Order not found" };
     }
 
+    try {
+      const currentStatus = status ? status.toUpperCase() : updatedOrder.status.toUpperCase();
+      if (currentStatus === "ARRIVED") {
+        await sendRideEventNotification(
+          updatedOrder.userId,
+          "Driver is Here! 📍",
+          `Your driver has arrived! Please share the OTP ${updatedOrder.otp || ''} with them to start.`,
+          orderId
+        );
+      } else if (currentStatus === "STARTED" || currentStatus === "IN_PROGRESS") {
+        await sendRideEventNotification(
+          updatedOrder.userId,
+          "Trip Started! 🟢",
+          "Your trip has started securely. Track it live!",
+          orderId
+        );
+      } else if (currentStatus === "COMPLETED") {
+        await sendRideEventNotification(
+          updatedOrder.userId,
+          "Trip Completed! ✅",
+          `Your trip is complete. The final fare is ₹${updatedOrder.estimatedFare || updatedOrder.finalFare || ''}. Thank you for riding with us!`,
+          orderId
+        );
+      } else if (currentStatus === "CANCELLED") {
+        await sendRideEventNotification(
+          updatedOrder.userId,
+          "Ride Cancelled ❌",
+          "We're sorry, your ride has been cancelled.",
+          orderId
+        );
+      }
+    } catch (notifErr) {
+      console.error("Error sending ride status notification:", notifErr);
+    }
+
     // Trigger Wallet Processing if status is 'COMPLETED'
     if (status === "COMPLETED") {
       const walletResult = await require("../services/wallet.service").processOrderPayment(updatedOrder._id);
@@ -339,6 +458,128 @@ const updateRideStatusByOrderId = async (payload) => {
   }
 };
 
+const SubmitRideRating = async (payload) => {
+  try {
+    const { orderId, rating, review } = payload;
+    if (!orderId || !rating) {
+      return { success: false, message: "Order ID and rating are required" };
+    }
+
+    const order = await OrderModel.findOne({ orderId });
+    if (!order) {
+      return { success: false, message: "Order not found" };
+    }
+
+    if (order.rating && order.rating.userRating && order.rating.userRating.rating) {
+      return { success: false, message: "Order is already rated" };
+    }
+
+    // Update Order Model
+    if (!order.rating) order.rating = {};
+    order.rating.userRating = {
+      rating: Number(rating),
+      review: review || ""
+    };
+    await order.save();
+
+    // Update Driver Model
+    if (order.driverId) {
+      const driver = await require("../models/driver.model").findOne({ userId: order.driverId });
+      if (driver) {
+        if (!driver.ratings) driver.ratings = { averageRating: 0, totalRatings: 0 };
+
+        const currentTotal = driver.ratings.totalRatings || 0;
+        const currentAverage = driver.ratings.averageRating || 0;
+
+        const newTotal = currentTotal + 1;
+        const newAverage = ((currentAverage * currentTotal) + Number(rating)) / newTotal;
+
+        driver.ratings.totalRatings = newTotal;
+        driver.ratings.averageRating = Math.round(newAverage * 10) / 10;
+
+        await driver.save();
+      }
+
+      const userDoc = await User.findOne({ userId: order.driverId });
+      if (userDoc) {
+        if (!userDoc.ratings) userDoc.ratings = { averageRating: 0, totalRatings: 0 };
+        userDoc.ratings.averageRating = driver ? driver.ratings.averageRating : Number(rating);
+        userDoc.ratings.totalRatings = driver ? driver.ratings.totalRatings : 1;
+        await userDoc.save();
+      }
+    }
+
+    return {
+      success: true,
+      message: "Rating submitted successfully",
+      data: order,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    };
+  }
+};
+
+const cancelOrderWithRefund = async (orderId) => {
+  try {
+    const order = await OrderModel.findOne({ orderId });
+    if (!order) {
+      return { success: false, message: "Order not found" };
+    }
+
+    if (order.status === "CANCELLED") {
+      return { success: false, message: "Order is already cancelled" };
+    }
+
+    // Check if there was an online payment that succeeded
+    let refundMessage = "Order cancelled successfully.";
+    if (order.paymentDetails?.status === "SUCCESS" && order.paymentDetails?.transaction?.modeOfPayment === "ONLINE") {
+      const transactionId = order.paymentDetails.transaction.transactionId;
+      const amount = order.paymentDetails.transaction.amount;
+
+      // We need cashfreeOrderId if possible, but transaction model might have it
+      const transaction = await transactionsModel.findOne({ transactionId });
+      let cashfreeOrderId = transaction?.cashfreeOrderId || orderId; // fallback
+
+      if (amount && amount > 0) {
+        const refundResponse = await cashfreeService.createRefund(
+          cashfreeOrderId,
+          amount,
+          `REF_${orderId}_${Date.now()}`
+        );
+
+        if (refundResponse.success) {
+          order.paymentDetails.status = "REFUND_INITIATED";
+          order.refundAmount = amount;
+          refundMessage = "Order cancelled and refund initiated successfully.";
+        } else {
+          console.error("Refund failed:", refundResponse.error);
+          refundMessage = "Order cancelled, but refund failed to initiate. Please contact support.";
+        }
+      }
+    }
+
+    order.status = "CANCELLED";
+    await order.save();
+
+    return {
+      success: true,
+      message: refundMessage,
+      data: order,
+    };
+  } catch (error) {
+    console.error("Error in cancelOrderWithRefund:", error);
+    return {
+      success: false,
+      message: "Internal server error during cancellation",
+      error: error.message,
+    };
+  }
+};
+
 module.exports = {
   getAllOrders,
   getConsumersOrders,
@@ -348,4 +589,6 @@ module.exports = {
   UpdateOrderStatusWithDriver,
   UpdateThePaymentOrderStatus,
   updateRideStatusByOrderId,
+  SubmitRideRating,
+  cancelOrderWithRefund,
 };

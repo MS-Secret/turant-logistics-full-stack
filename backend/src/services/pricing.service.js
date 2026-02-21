@@ -23,7 +23,7 @@ const CreatePricing = async (payload) => {
       waitingChargePerMin,
       freeWaitingMinutes,
       returnTripFeePercentage,
-      nightSurchargePercentage,
+      nightSurchargeAmount,
       codHandlingFee,
       loadingCharge,
       offloadingCharge,
@@ -60,7 +60,7 @@ const CreatePricing = async (payload) => {
       waitingChargePerMin,
       freeWaitingMinutes,
       returnTripFeePercentage,
-      nightSurchargePercentage,
+      nightSurchargeAmount,
       codHandlingFee,
       loadingCharge,
       offloadingCharge,
@@ -104,7 +104,7 @@ const UpdatePricing = async (id, payload) => {
       waitingChargePerMin,
       freeWaitingMinutes,
       returnTripFeePercentage,
-      nightSurchargePercentage,
+      nightSurchargeAmount,
       codHandlingFee,
       loadingCharge,
       offloadingCharge,
@@ -125,7 +125,7 @@ const UpdatePricing = async (id, payload) => {
       waitingChargePerMin,
       freeWaitingMinutes,
       returnTripFeePercentage,
-      nightSurchargePercentage,
+      nightSurchargeAmount,
       codHandlingFee,
       loadingCharge,
       offloadingCharge,
@@ -338,10 +338,9 @@ const CalculateFare = async (payload) => {
         orderFare * (pricingData.returnTripFeePercentage / 100);
     }
 
-    // Night Surcharge (10% for 9pm to 7am)
-    if (nightTime && pricingData.nightSurchargePercentage > 0) {
-      optionalCharges +=
-        orderFare * (pricingData.nightSurchargePercentage / 100);
+    // Night Surcharge (Flat Amount)
+    if (nightTime && pricingData.nightSurchargeAmount > 0) {
+      optionalCharges += pricingData.nightSurchargeAmount;
     }
 
     // COD Handling Fee
@@ -381,9 +380,7 @@ const CalculateFare = async (payload) => {
         returnTripFee: isReturnTrip
           ? Math.round(orderFare * (pricingData.returnTripFeePercentage / 100))
           : 0,
-        nightSurcharge: nightTime
-          ? Math.round(orderFare * (pricingData.nightSurchargePercentage / 100))
-          : 0,
+        nightSurcharge: nightTime ? (pricingData.nightSurchargeAmount || 0) : 0,
         codHandlingFee: isCOD ? pricingData.codHandlingFee : 0,
         extraHandsCharge: needExtraHands ? pricingData.extraHandsCharge : 0,
         loadingCharge: pricingData.loadingCharge || 0,

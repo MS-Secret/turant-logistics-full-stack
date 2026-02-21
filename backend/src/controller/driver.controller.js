@@ -10,7 +10,7 @@ const {
   CompleteRideByDriver,
   ResetDailyEarnings
 } = require("../services/driver.service");
-const driverService=require("../services/driver.service");
+const driverService = require("../services/driver.service");
 
 const handleGetDriverList = async (req, res) => {
   try {
@@ -93,7 +93,7 @@ const handleUpdateDriverKycStatus = async (req, res) => {
 
 const handleActiveFindingDrivers = async (req, res) => {
   try {
-    
+
     const result = await FindingActiveDrivers();
     if (result.success) {
       return res.status(httpStatusCode.OK).json(result);
@@ -146,7 +146,7 @@ const handleUpdateDriverWorkingStatus = async (req, res) => {
 const handleGetNearbyDrivers = async (req, res) => {
   try {
     const { lat, long, radiusInKm } = req.query;
-    
+
     if (!lat || !long) {
       return res.status(httpStatusCode.BAD_REQUEST).json({
         success: false,
@@ -177,15 +177,15 @@ const handleGetNearbyDrivers = async (req, res) => {
 
 const handleSendRideRequest = async (req, res) => {
   try {
-    const { 
-      pickupLocation, 
-      dropoffLocation, 
-      rideType, 
+    const {
+      pickupLocation,
+      dropoffLocation,
+      rideType,
       estimatedFare,
       driverIds,
-      radiusInKm 
+      radiusInKm
     } = req.body;
-    
+
     const userId = req.user?.userId; // Assuming user info is available from auth middleware
 
     if (!userId) {
@@ -227,19 +227,19 @@ const handleSendRideRequest = async (req, res) => {
   }
 };
 
-const handleUpdateCurrentLocation=async(req,res)=>{
-  try{
-    const result=await driverService.UpdateCurrentLocation(req.body);
-    if(!result.success){
+const handleUpdateCurrentLocation = async (req, res) => {
+  try {
+    const result = await driverService.UpdateCurrentLocation(req.body);
+    if (!result.success) {
       return res.status(httpStatusCode.BAD_REQUEST).json(result)
     }
     return res.status(httpStatusCode.OK).json(result);
-  }catch(error){
-    console.log("error while update the driver current location",error);
+  } catch (error) {
+    console.log("error while update the driver current location", error);
     return res.status(httpStatusCode.INTERNAL_SERVER_ERROR).json({
-      success:false,
-      message:"Something went wrong",
-      error:error?.message
+      success: false,
+      message: "Something went wrong",
+      error: error?.message
     })
   }
 }
@@ -247,7 +247,7 @@ const handleUpdateCurrentLocation=async(req,res)=>{
 const handleCompleteRideByDriver = async (req, res) => {
   try {
     const { driverId, orderId, amount } = req.body;
-    
+
     if (!driverId || !orderId || !amount) {
       return res.status(httpStatusCode.BAD_REQUEST).json({
         success: false,
@@ -297,25 +297,32 @@ const handleResetDailyEarnings = async (req, res) => {
 
 const CreateDriverDetails = async (req, res) => {
   try {
-    const { name, licenseNumber, userId, phoneNumber } = req.body;
+    const { name, licenseNumber, userId, phoneNumber, accountHolderName, accountNumber, ifscCode } = req.body;
     if (!name || !licenseNumber || !userId || !phoneNumber) {
       return res.status(httpStatusCode.BAD_REQUEST).json({
         success: false,
         message: "Name, LicenseNumber, UserId and PhoneNumber are required",
       });
     }
-    if (!req?.file) {
+
+    // Using req.files now since we changed to upload.fields
+    if (!req.files || !req.files['licenseDocument'] || !req.files['licenseDocument'][0]) {
       return res.status(400).json({
         success: false,
         message: "License document is required",
       });
     }
+
     const payload = {
       name,
       licenseNumber,
       userId,
       phoneNumber,
-      licenseDocument: req.file,
+      accountHolderName,
+      accountNumber,
+      ifscCode,
+      licenseDocument: req.files['licenseDocument'][0],
+      passbookDocument: req.files['passbookDocument'] ? req.files['passbookDocument'][0] : null,
     };
     const result = await driverService.AddDriverDetails(payload);
     if (!result.success) {

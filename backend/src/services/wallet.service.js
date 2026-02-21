@@ -2,7 +2,9 @@ const Wallet = require("../models/wallet.model");
 const Order = require("../models/order.model");
 const Pricing = require("../models/pricing.model");
 const Driver = require("../models/driver.model");
-const { calculateWeightFare } = require("../utils/orderHelper");
+const User = require("../models/user.model");
+const { calculateWeightFare, isCheckNightTime } = require("../utils/orderHelper");
+const cashfreeService = require("./cashfree.service");
 
 /**
  * Calculates how much the rider should earn from a completed order.
@@ -31,10 +33,8 @@ const calculateRiderEarning = (order, pricing) => {
     const baseFare = pricing.minOrderFare;
 
     // 3. Distance Charge
-    // Note: If actual distance is available in order, use it. 
-    // We assume 'distance' is passed or available calculating fare.
-    // For now using the logic: Rate * Distance
-    const distanceCharge = (order.actualDistance || 0) * ratePerKm;
+    // Note: Use 'distance' passed calculating fare.
+    const distanceCharge = (order.distance || 0) * ratePerKm;
 
     // 4. Weight Charge (50% to Rider)
     // Calculate full weight fare then divide by 2
@@ -57,23 +57,20 @@ const calculateRiderEarning = (order, pricing) => {
     }
     const waitingCharge = totalWaitingCharge / 2;
 
-    // 6. Fragile/Handling Charge (Fixed ₹10 if applicable)
-    // Logic: "if fragile(₹10)" - verifying where fragile flag is. 
-    // Assuming it might be in package details or separate flag.
-    // For now, if 'codHandlingFee' was applied (often for fragile/cod), we might use that?
-    // User prompt said "if fragile(₹10)". Let's check packageDetails for fragile flag or assume COD handling implies it?
-    // Going with safe assumption: if COD or explicit fragile flag.
-    const fragileCharge = 10; // Hardcoded as per prompt "if fragile(₹10)" - Apply consistently or check flag? 
-    // Let's assume it applies if it acts as a "Handling Fee". 
-    // If we don't have a specific 'fragile' flag, we might use 'codHandlingFee' logic but user said explicitly fragile.
-    // I will add a check: if packageDetails.isFragile (need to ensure this field exists or add it)
-    // For now, I will use 0 if not sure, to be safe. *Update*: Checked Order model, no isFragile. 
-    // I will use 0 for now but leave comment.
+    // 6. Fragile/Handling Charge (50% to Rider if applicable)
+    let fragileCharge = 0;
+    if (
+        packageDetails?.packageType === 'Fragile items' ||
+        packageDetails?.packageType === 'Cakes' ||
+        packageDetails?.packageType === 'cakes'
+    ) {
+        fragileCharge = 10; // 50% of the ₹20 customer fee
+    }
 
     // 7. Night Surcharge (Fixed ₹15)
     // User prompt: "night sur ₹15". 
     // Real logic usually checks time. 
-    const isNight = false; // TODO: Implement isNight check based on orderDateTime
+    const isNight = isCheckNightTime(new Date(orderDateTime));
     const nightCharge = isNight ? 15 : 0;
 
     // 8. Max Calculation
@@ -83,7 +80,7 @@ const calculateRiderEarning = (order, pricing) => {
         distanceCharge +
         weightCharge +
         waitingCharge +
-        nightCharge // + fragileCharge if valid
+        nightCharge + fragileCharge
     );
 
     return Math.round(calculatedEarning);
@@ -120,11 +117,22 @@ const processOrderPayment = async (orderId) => {
         const order = await Order.findById(orderId);
         if (!order) throw new Error("Order not found");
 
-        if (!order.vehicleDetails?.vehicleId) throw new Error("Vehicle ID missing in order");
-
         // Fetch Pricing Model to get Rates & Fuel Type
-        const pricing = await Pricing.findById(order.vehicleDetails.vehicleId);
-        if (!pricing) throw new Error("Pricing model not found");
+        let pricing = null;
+        if (order.vehicleDetails?.vehicleId) {
+            pricing = await Pricing.findById(order.vehicleDetails.vehicleId);
+        }
+
+        if (!pricing) {
+            console.warn(`[Wallet Service] Pricing model not found or vehicleId missing for Order ${orderId}, using default calculation rates.`);
+            pricing = {
+                vehicleFuelType: "fuel", // Default to fuel
+                minOrderFare: 49,
+                weightSlabs: [],
+                freeWaitingMinutes: 5,
+                waitingChargePerMin: 2
+            };
+        }
 
         // 1. Calculate Rider Earning
         const riderEarning = calculateRiderEarning(order, pricing);
@@ -138,10 +146,9 @@ const processOrderPayment = async (orderId) => {
 
         // 4. Update Wallet
         const driverId = order.driverId; // Assuming driverId is stored as string/ObjectId reference
-        // Find driver's wallet (using driverId matching the Driver Model _id)
-        // order.driverId is a String in existing model, we need to cast or find Driver first
-        const driver = await Driver.findOne({ _id: driverId });
-        if (!driver) throw new Error("Driver not found");
+        // order.driverId is a String pointing to driver.userId, so we query using { userId: driverId }
+        const driver = await Driver.findOne({ userId: driverId });
+        if (!driver) throw new Error("Driver not found with userId: " + driverId);
 
         let wallet = await Wallet.findOne({ driver: driver._id });
         if (!wallet) wallet = await createWallet(driver._id);
@@ -214,10 +221,220 @@ const getHistory = async (driverId) => {
     return wallet ? wallet.transactions.reverse() : [];
 };
 
+const initiateRecharge = async (driverId, amount, driver) => {
+    try {
+        const orderId = `RCG_${Date.now()}_${driverId.toString().substring(0, 5)}`;
+        // Find user to get phone/email
+        const user = await User.findOne({ userId: driver.userId });
+
+        let customerDetails = {
+            customerId: driver.userId,
+            customerName: user?.fullName || "Driver",
+            customerEmail: user?.email || "driver@turant.com",
+            customerPhone: user?.mobileNumber || "9999999999"
+        };
+
+        const cashfreeOrderData = {
+            orderId,
+            amount: amount,
+            currency: "INR",
+            customerDetails: customerDetails
+        };
+
+        const paymentResponse = await cashfreeService.createOrder(cashfreeOrderData);
+        if (!paymentResponse.success) {
+            return { success: false, message: "Cashfree order creation failed", error: paymentResponse.error };
+        }
+
+        return {
+            success: true,
+            message: "Recharge session initiated",
+            data: {
+                sessionId: paymentResponse.data.payment_session_id,
+                orderId: paymentResponse.data.order_id
+            }
+        };
+    } catch (error) {
+        console.error("Error initiating recharge:", error);
+        return { success: false, message: error.message };
+    }
+};
+
+const verifyRecharge = async (driverId, orderId) => {
+    try {
+        // Find or create wallet first
+        let wallet = await Wallet.findOne({ driver: driverId });
+        if (!wallet) wallet = await createWallet(driverId);
+
+        // Check memory to early fail if already processed
+        const isAlreadyProcessed = wallet.transactions.some(tx => tx.description === `Wallet Recharge: ${orderId}`);
+        if (isAlreadyProcessed) {
+            return { success: true, message: "Wallet recharge already processed", data: { newBalance: wallet.balance } };
+        }
+
+        const verificationResponse = await cashfreeService.verifyPayment(orderId);
+
+        if (!verificationResponse.success || verificationResponse.data.orderStatus !== "PAID") {
+            return { success: false, message: "Payment verification failed or pending" };
+        }
+
+        const amount = verificationResponse.data.paidAmount || verificationResponse.data.orderAmount;
+
+        // ATOMIC UPDATE to prevent race conditions when multiple onVerify callbacks are fired instantly by SDK
+        const updatedWallet = await Wallet.findOneAndUpdate(
+            {
+                driver: driverId,
+                "transactions.description": { $ne: `Wallet Recharge: ${orderId}` }
+            },
+            {
+                $inc: { balance: amount },
+                $push: {
+                    transactions: {
+                        type: "CREDIT",
+                        amount: amount,
+                        description: `Wallet Recharge: ${orderId}`,
+                        status: "SUCCESS"
+                    }
+                }
+            },
+            { new: true }
+        );
+
+        if (!updatedWallet) {
+            // The condition ($ne) failed, meaning it was processed in another concurrent thread
+            const finalWallet = await Wallet.findOne({ driver: driverId });
+            return { success: true, message: "Wallet recharge already processed", data: { newBalance: finalWallet?.balance || 0 } };
+        }
+
+        return {
+            success: true,
+            message: "Wallet recharged successfully",
+            data: { newBalance: updatedWallet.balance }
+        };
+    } catch (error) {
+        console.error("Error verifying recharge:", error);
+        return { success: false, message: error.message };
+    }
+};
+
+const processWithdrawal = async (driverId, amount, method, bankDetails, upiDetails) => {
+    try {
+        let wallet = await Wallet.findOne({ driver: driverId });
+        if (!wallet) return { success: false, message: "Wallet not found" };
+
+        if (wallet.balance < amount) {
+            return { success: false, message: "Insufficient wallet balance" };
+        }
+
+        const driver = await Driver.findById(driverId);
+        if (!driver) return { success: false, message: "Driver not found" };
+
+        const user = await User.findOne({ userId: driver.userId });
+
+        const parseDetails = (details) => {
+            if (!details || details === "undefined" || details === "null") return null;
+            if (typeof details === 'string') {
+                try { return JSON.parse(details); } catch (e) { return null; }
+            }
+            return typeof details === 'object' ? details : null;
+        };
+
+        // Update withdrawal details if provided
+        if (method) {
+            const newWithdrawalDetails = { method };
+
+            const parsedBank = parseDetails(bankDetails) || parseDetails(driver.withdrawalDetails?.bankDetails);
+            if (parsedBank) newWithdrawalDetails.bankDetails = parsedBank;
+
+            const parsedUpi = parseDetails(upiDetails) || parseDetails(driver.withdrawalDetails?.upiDetails);
+            if (parsedUpi) newWithdrawalDetails.upiDetails = parsedUpi;
+
+            // Bypass Mongoose Hydration crash by directly updating the document
+            await Driver.updateOne(
+                { _id: driverId },
+                { $set: { withdrawalDetails: newWithdrawalDetails } }
+            );
+
+            driver.withdrawalDetails = newWithdrawalDetails;
+        }
+
+        const withdrawInfo = driver.withdrawalDetails;
+        if (!withdrawInfo || !withdrawInfo.method) {
+            return { success: false, message: "Bank or UPI details missing for withdrawal" };
+        }
+
+        // Prepare Beneficiary
+        const beneId = `BENE_${driver.userId}`;
+        const beneDetails = {
+            beneId: beneId,
+            name: withdrawInfo.method === 'BANK' ? withdrawInfo.bankDetails?.accountHolderName || user?.fullName : (user?.fullName || "Driver"),
+            email: user?.email || "driver@turant.com",
+            phone: user?.mobileNumber || "9999999999",
+            address1: "Turant Logistics"
+        };
+
+        if (withdrawInfo.method === 'BANK') {
+            if (!withdrawInfo.bankDetails?.accountNumber || !withdrawInfo.bankDetails?.ifsc) {
+                return { success: false, message: "Incomplete Bank Details" };
+            }
+            beneDetails.bankAccount = withdrawInfo.bankDetails.accountNumber;
+            beneDetails.ifsc = withdrawInfo.bankDetails.ifsc;
+        } else if (withdrawInfo.method === 'UPI') {
+            if (!withdrawInfo.upiDetails?.upiId) {
+                return { success: false, message: "Incomplete UPI Details" };
+            }
+            beneDetails.vpa = withdrawInfo.upiDetails.upiId;
+        }
+
+        // Add Beneficiary to Cashfree
+        const beneResult = await cashfreeService.createBeneficiary(beneDetails);
+        if (!beneResult.success) {
+            return { success: false, message: "Failed to add beneficiary: " + beneResult.error };
+        }
+
+        // Request Transfer
+        const transferId = `WD_${Date.now()}_${driverId.toString().substring(0, 5)}`;
+        const transferDetails = {
+            beneId: beneId,
+            amount: amount.toString(),
+            transferId: transferId,
+            transferMode: withdrawInfo.method === 'BANK' ? 'IMPS' : 'UPI',
+        };
+
+        const transferResult = await cashfreeService.requestTransfer(transferDetails);
+        if (!transferResult.success) {
+            return { success: false, message: "Transfer failed: " + transferResult.error };
+        }
+
+        // Only after successful initiation do we deduct the balance
+        wallet.balance -= amount;
+        wallet.transactions.push({
+            type: "DEBIT",
+            amount: amount,
+            description: `Withdrawal (${withdrawInfo.method}): ${transferId}`,
+            status: "SUCCESS"
+        });
+
+        await wallet.save();
+
+        return {
+            success: true,
+            message: "Withdrawal processed successfully",
+            data: { newBalance: wallet.balance, transferId }
+        };
+
+    } catch (error) {
+        console.error("Error processing withdrawal:", error);
+        return { success: false, message: error.message };
+    }
+};
 
 module.exports = {
     createWallet,
     getWalletBalance,
     processOrderPayment,
-    getHistory
+    getHistory,
+    initiateRecharge,
+    verifyRecharge,
+    processWithdrawal
 };

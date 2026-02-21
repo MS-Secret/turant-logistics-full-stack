@@ -6,6 +6,7 @@ const transactionsRoutes = require("./transactions.routes");
 const pricingRoutes = require("./pricing.routes");
 const notificationRoutes = require("./notification.routes");
 const walletRoutes = require("./wallet.routes");
+const campaignRoutes = require("./campaign.routes");
 
 Router.use("/auth", authRoutes);
 Router.use("/kyc", kycRoutes);
@@ -14,6 +15,7 @@ Router.use("/pricing", pricingRoutes);
 Router.use("/transactions", transactionsRoutes);
 Router.use("/notification", notificationRoutes);
 Router.use("/wallet", walletRoutes);
+Router.use("/campaigns", campaignRoutes);
 
 // 404 handler for auth routes
 Router.all("*", (req, res) => {

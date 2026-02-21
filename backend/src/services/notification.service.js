@@ -109,7 +109,66 @@ const SendTestNotification = async (payload) => {
   }
 };
 
+const GetUserNotifications = async (payload) => {
+  try {
+    const { userId } = payload;
+    if (!userId) {
+      return { success: false, message: "Missing required field: userId" };
+    }
+
+    const notifications = await NotificationModel.find({ userId }).sort({ createdAt: -1 });
+
+    // Map to frontend expected format
+    const formattedNotifications = notifications.map(n => ({
+      id: n._id.toString(),
+      type: n.type || 'general',
+      title: n.title,
+      message: n.message,
+      time: n.createdAt,
+      read: n.read
+    }));
+
+    return {
+      success: true,
+      message: "Notifications fetched successfully",
+      data: formattedNotifications
+    };
+  } catch (error) {
+    console.error("Error fetching user notifications:", error);
+    return { success: false, message: "Internal service error", error: error.message };
+  }
+};
+
+const MarkNotificationAsRead = async (payload) => {
+  try {
+    const { notificationId } = payload;
+    if (!notificationId) {
+      return { success: false, message: "Missing required field: notificationId" };
+    }
+
+    const notification = await NotificationModel.findByIdAndUpdate(
+      notificationId,
+      { read: true },
+      { new: true }
+    );
+
+    if (!notification) {
+      return { success: false, message: "Notification not found" };
+    }
+
+    return {
+      success: true,
+      message: "Notification marked as read"
+    };
+  } catch (error) {
+    console.error("Error marking notification as read:", error);
+    return { success: false, message: "Internal service error", error: error.message };
+  }
+};
+
 module.exports = {
   RegisterFCMToken,
   SendTestNotification,
+  GetUserNotifications,
+  MarkNotificationAsRead
 };

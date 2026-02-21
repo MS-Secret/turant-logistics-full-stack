@@ -142,6 +142,10 @@ const orderSchema = createBaseSchema({
       required: false,
     },
   },
+  distance: {
+    type: Number,
+    required: false,
+  },
   payment: {
     method: {
       type: String,

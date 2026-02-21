@@ -35,7 +35,7 @@ const GetConsumersOrders = async (req, res) => {
       page,
       limit,
     });
-    console.log("result of consumers order:",result);
+    console.log("result of consumers order:", result);
     if (!result?.success) {
       return res.status(httpStatusCode.BAD_REQUEST).json(result);
     }
@@ -104,9 +104,69 @@ const GetOrderById = async (req, res) => {
 };
 
 
+const RateRide = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { rating, review } = req.body;
+
+    if (!orderId || !rating) {
+      return res.status(httpStatusCode.BAD_REQUEST).json({
+        success: false,
+        message: "Order ID and rating are required",
+      });
+    }
+
+    const result = await OrderService.SubmitRideRating({
+      orderId,
+      rating,
+      review,
+    });
+
+    if (!result?.success) {
+      return res.status(httpStatusCode.BAD_REQUEST).json(result);
+    }
+    return res.status(httpStatusCode.OK).json(result);
+  } catch (error) {
+    console.error("Error rating ride:", error);
+    return res.status(httpStatusCode.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Failed to submit rating",
+      error: error.message,
+    });
+  }
+};
+
+const CancelOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    if (!orderId) {
+      return res.status(httpStatusCode.BAD_REQUEST).json({
+        success: false,
+        message: "Order ID is required",
+      });
+    }
+
+    const result = await OrderService.cancelOrderWithRefund(orderId);
+
+    if (!result?.success) {
+      return res.status(httpStatusCode.BAD_REQUEST).json(result);
+    }
+    return res.status(httpStatusCode.OK).json(result);
+  } catch (error) {
+    console.error("Error cancelling order:", error);
+    return res.status(httpStatusCode.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Failed to cancel order",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   GetAllOrders,
   GetConsumersOrders,
   GetDriversOrders,
   GetOrderById,
+  RateRide,
+  CancelOrder,
 };

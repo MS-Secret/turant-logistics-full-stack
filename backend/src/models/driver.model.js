@@ -27,12 +27,12 @@ const driverSchema = createBaseSchema({
   currentLocation: {
     latitude: {
       type: Number,
-      required:false,
+      required: false,
       default: 0,
     },
     longitude: {
       type: Number,
-      required:false,
+      required: false,
       default: 0,
     }
   },
@@ -92,12 +92,27 @@ const driverSchema = createBaseSchema({
     type: Boolean,
     default: true
   },
-  kycStatus:{
+  withdrawalDetails: {
+    method: {
+      type: String,
+      enum: ['BANK', 'UPI'],
+      required: false
+    },
+    bankDetails: {
+      accountNumber: String,
+      ifsc: String,
+      accountHolderName: String
+    },
+    upiDetails: {
+      upiId: String
+    }
+  },
+  kycStatus: {
     type: String,
     enum: ['NOT_STARTED', 'PENDING', 'VERIFIED', 'REJECTED'],
     default: 'NOT_STARTED'
   },
-  kycDetailsId:{
+  kycDetailsId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'KYCApplication',
     required: false

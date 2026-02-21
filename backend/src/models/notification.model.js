@@ -6,6 +6,15 @@ const NotificationSchema = createBaseSchema({
     type: String,
     required: true,
   },
+  title: {
+    type: String,
+    required: true,
+  },
+  type: {
+    type: String,
+    enum: ['order', 'offer', 'account', 'general'],
+    default: 'general'
+  },
   message: {
     type: String,
     required: true

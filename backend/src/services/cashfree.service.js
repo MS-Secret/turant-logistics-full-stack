@@ -47,7 +47,7 @@ const createOrder = async (orderData) => {
     console.log('Creating Cashfree order with data:', orderRequest);
 
     const response = await cashfree.PGCreateOrder(orderRequest);
-    
+
     console.log('Cashfree order created successfully:', response.data);
     return {
       success: true,
@@ -114,14 +114,14 @@ const createPaymentSession = async (orderId) => {
 const verifyPayment = async (orderId) => {
   try {
     const orderResponse = await getOrderDetails(orderId);
-    
+
     if (!orderResponse.success) {
       return orderResponse;
     }
 
     const order = orderResponse.data;
     console.log('Order details for verification:', order);
-    
+
     return {
       success: true,
       data: {
@@ -165,7 +165,7 @@ const verifyWebhookSignature = (webhookBody, signature) => {
     const crypto = require('crypto');
     const { cashfreeConfig } = require('../config/cashfreeConfig');
     const clientSecret = cashfreeConfig.clientSecret;
-    
+
     const expectedSignature = crypto
       .createHmac('sha256', clientSecret)
       .update(JSON.stringify(webhookBody))
@@ -178,6 +178,57 @@ const verifyWebhookSignature = (webhookBody, signature) => {
   }
 };
 
+/**
+ * Create a refund for a Cashfree order
+ * @param {string} orderId - Cashfree order ID
+ * @param {number} refundAmount - Amount to refund
+ * @param {string} refundId - Unique refund ID string
+ * @returns {Object} Refund response
+ */
+const createRefund = async (orderId, refundAmount, refundId) => {
+  try {
+    const refundRequest = {
+      refund_amount: refundAmount,
+      refund_id: refundId,
+      refund_note: "User requested cancellation"
+    };
+
+    console.log(`Initiating Cashfree refund for order ${orderId}, amount: ${refundAmount}`);
+
+    // Attempt to use SDK, if it fails due to method missing, log and we could fallback to axios
+    let response;
+    if (typeof cashfree.PGOrderCreateRefund === 'function') {
+      // cashfree version <= 4 takes version string as first param sometimes, version 5 might just take params
+      response = await cashfree.PGOrderCreateRefund("2023-08-01", orderId, refundRequest);
+    } else {
+      // Fallback manual axios call if SDK method is different in this exact version
+      const axios = require('axios');
+      const { cashfreeConfig } = require('../config/cashfreeConfig');
+      const baseURL = cashfreeConfig.environment === 'PRODUCTION' ? 'https://api.cashfree.com/pg' : 'https://sandbox.cashfree.com/pg';
+      response = await axios.post(`${baseURL}/orders/${orderId}/refunds`, refundRequest, {
+        headers: {
+          'x-client-id': cashfreeConfig.clientId,
+          'x-client-secret': cashfreeConfig.clientSecret,
+          'x-api-version': '2023-08-01',
+          'Content-Type': 'application/json'
+        }
+      });
+    }
+
+    console.log('Cashfree refund initiated successfully:', response.data);
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    console.error('Error initiating Cashfree refund:', error.response?.data || error.message);
+    return {
+      success: false,
+      error: error.response?.data || error.message,
+    };
+  }
+};
+
 module.exports = {
   createOrder,
   getOrderDetails,
@@ -185,4 +236,93 @@ module.exports = {
   verifyPayment,
   getOrderExpiryTime,
   verifyWebhookSignature,
+  createRefund
 };
+
+/**
+ * CAUTION: Cashfree Payout API differs from Payment Gateway (PG) API.
+ * The following uses standard Axios calls to Cashfree Payouts.
+ */
+const axios = require('axios');
+
+const getPayoutToken = async () => {
+  const { cashfreeConfig } = require('../config/cashfreeConfig');
+  const baseURL = cashfreeConfig.environment === 'PRODUCTION'
+    ? 'https://payout-api.cashfree.com/payout/v1'
+    : 'https://payout-gamma.cashfree.com/payout/v1';
+
+  try {
+    const response = await axios.post(`${baseURL}/authorize`, {}, {
+      headers: {
+        'x-client-id': process.env.CASHFREE_PAYOUT_CLIENT_ID || cashfreeConfig.clientId,
+        'x-client-secret': process.env.CASHFREE_PAYOUT_CLIENT_SECRET || cashfreeConfig.clientSecret
+      }
+    });
+    return response.data.data.token;
+  } catch (error) {
+    console.error("Error getting Cashfree Payout Token:", error.response?.data || error.message);
+    throw new Error(error.response?.data?.message || "Failed to authorize Cashfree Payouts");
+  }
+};
+
+const createBeneficiary = async (beneDetails) => {
+  try {
+    const { cashfreeConfig } = require('../config/cashfreeConfig');
+    // If no payout keys provided, simulate success for development
+    if (!process.env.CASHFREE_PAYOUT_CLIENT_ID) {
+      console.warn("No CASHFREE_PAYOUT_CLIENT_ID found, simulating Add Beneficiary.");
+      return { success: true, message: "Simulated Beneficiary Creation" };
+    }
+
+    const token = await getPayoutToken();
+    const baseURL = cashfreeConfig.environment === 'PRODUCTION'
+      ? 'https://payout-api.cashfree.com/payout/v1'
+      : 'https://payout-gamma.cashfree.com/payout/v1';
+
+    const response = await axios.post(`${baseURL}/addBeneficiary`, beneDetails, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error('Error creating Beneficiary:', error.response?.data || error.message);
+    // If beneficiary already exists, Cashfree returns a specific subCode. We will treat it as success.
+    if (error.response?.data?.subCode === '403') {
+      return { success: true, message: "Beneficiary already exists" };
+    }
+    return { success: false, error: error.response?.data?.message || error.message };
+  }
+};
+
+const requestTransfer = async (transferDetails) => {
+  try {
+    const { cashfreeConfig } = require('../config/cashfreeConfig');
+
+    // Simulate real money transfer if no exact payout keys provided
+    if (!process.env.CASHFREE_PAYOUT_CLIENT_ID) {
+      console.warn("No CASHFREE_PAYOUT_CLIENT_ID found, simulating Payout Transfer.");
+      return { success: true, data: { referenceId: "SIM_" + Date.now(), status: "SUCCESS" } };
+    }
+
+    const token = await getPayoutToken();
+    const baseURL = cashfreeConfig.environment === 'PRODUCTION'
+      ? 'https://payout-api.cashfree.com/payout/v1'
+      : 'https://payout-gamma.cashfree.com/payout/v1';
+
+    const response = await axios.post(`${baseURL}/requestTransfer`, transferDetails, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error('Error requesting Transfer:', error.response?.data || error.message);
+    return { success: false, error: error.response?.data?.message || error.message };
+  }
+};
+
+module.exports.createBeneficiary = createBeneficiary;
+module.exports.requestTransfer = requestTransfer;
