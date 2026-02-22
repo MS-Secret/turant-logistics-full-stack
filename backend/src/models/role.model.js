@@ -31,7 +31,6 @@ const roleSchema = createBaseSchema({
 });
 
 // Index for efficient queries
-roleSchema.index({ name: 1 });
 roleSchema.index({ isActive: 1 });
 
 const Role = mongoose.model('Role', roleSchema);

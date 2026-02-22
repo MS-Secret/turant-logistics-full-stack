@@ -5,14 +5,12 @@ const consumerSchema = createBaseSchema({
   userId: {
     type: String,
     required: false,
-    unique: true,
-    index: true
+    unique: true
   },
   consumerId: {
     type: String,
     required: false,
-    unique: true,
-    index: true
+    unique: true
   },
   addresses: [{
     type: {

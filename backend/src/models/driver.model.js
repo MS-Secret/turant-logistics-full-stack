@@ -5,14 +5,12 @@ const driverSchema = createBaseSchema({
   userId: {
     type: String,
     required: false,
-    unique: true,
-    index: true
+    unique: true
   },
   driverId: {
     type: String,
     required: false,
-    unique: true,
-    index: true
+    unique: true
   },
   workingStatus: {
     type: String,
@@ -118,10 +116,6 @@ const driverSchema = createBaseSchema({
     required: false
   }
 });
-
-// Indexes
-driverSchema.index({ userId: 1 });
-driverSchema.index({ driverId: 1 });
 
 const Driver = mongoose.model('Driver', driverSchema);
 

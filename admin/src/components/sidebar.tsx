@@ -3,14 +3,14 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { 
-  LayoutDashboard, 
-  Truck, 
-  Users, 
-  DollarSign, 
-  Package, 
-  BarChart3, 
-  Settings, 
+import {
+  LayoutDashboard,
+  Truck,
+  Users,
+  DollarSign,
+  Package,
+  BarChart3,
+  Settings,
   Bell,
   MapPin,
   Calendar,
@@ -19,12 +19,13 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
-  User
+  User,
+  Speaker
 } from 'lucide-react'
 
 
 const Sidebar = () => {
-  const router=useRouter();
+  const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false)
   const pathname = usePathname()
 
@@ -96,6 +97,12 @@ const Sidebar = () => {
       color: 'text-amber-500'
     },
     {
+      title: 'Marketing',
+      icon: Speaker,
+      href: '/dashboard/marketing',
+      color: 'text-violet-500'
+    },
+    {
       title: 'Settings',
       icon: Settings,
       href: '/dashboard/settings',
@@ -142,26 +149,26 @@ const Sidebar = () => {
         {menuItems.map((item) => {
           const Icon = item.icon
           const active = isActive(item.href)
-          
+
           return (
             <Link
               key={item.href}
               href={item.href}
               className={`
                 flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 group
-                ${active 
-                  ? 'bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 text-blue-700' 
+                ${active
+                  ? 'bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 text-blue-700'
                   : 'hover:bg-gray-50 text-gray-600 hover:text-gray-800'
                 }
                 ${isCollapsed ? 'justify-center px-2' : ''}
               `}
             >
-              <Icon 
+              <Icon
                 className={`
                   w-5 h-5 transition-colors
                   ${active ? item.color : 'text-gray-500 group-hover:text-gray-700'}
                   ${isCollapsed ? 'w-6 h-6' : ''}
-                `} 
+                `}
               />
               {!isCollapsed && (
                 <span className={`font-medium ${active ? 'text-blue-700' : ''}`}>
@@ -189,9 +196,9 @@ const Sidebar = () => {
             </div>
           </div>
         )}
-        
+
         <button
-          onClick={()=>{
+          onClick={() => {
             localStorage.clear();
             router.push("/login")
           }}

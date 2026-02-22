@@ -125,6 +125,12 @@ interface KycDriver {
   licenseNumber: string;
   name: string;
   phoneNumber: string;
+  bankDetails?: {
+    accountHolderName: string;
+    accountNumber: string;
+    ifscCode: string;
+    passbookImageUrl: string;
+  };
 }
 
 interface Kyc {
@@ -348,11 +354,10 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
               Account Status
             </label>
             <span
-              className={`inline-flex px-3 py-1 text-sm font-medium rounded-full ${
-                driver?.isActive
-                  ? "bg-green-100 text-green-800"
-                  : "bg-red-100 text-red-800"
-              }`}
+              className={`inline-flex px-3 py-1 text-sm font-medium rounded-full ${driver?.isActive
+                ? "bg-green-100 text-green-800"
+                : "bg-red-100 text-red-800"
+                }`}
             >
               {driver?.isActive ? "Active" : "Inactive"}
             </span>
@@ -368,9 +373,8 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
               Phone Verified
             </label>
             <span
-              className={`inline-flex items-center gap-1 ${
-                driver?.user.phoneVerified ? "text-green-600" : "text-red-600"
-              }`}
+              className={`inline-flex items-center gap-1 ${driver?.user.phoneVerified ? "text-green-600" : "text-red-600"
+                }`}
             >
               {driver?.user.phoneVerified ? (
                 <CheckCircle className="w-4 h-4" />
@@ -385,9 +389,8 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
               Email Verified
             </label>
             <span
-              className={`inline-flex items-center gap-1 ${
-                driver?.user.emailVerified ? "text-green-600" : "text-red-600"
-              }`}
+              className={`inline-flex items-center gap-1 ${driver?.user.emailVerified ? "text-green-600" : "text-red-600"
+                }`}
             >
               {driver?.user.emailVerified ? (
                 <CheckCircle className="w-4 h-4" />
@@ -627,13 +630,12 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
           <div>
             <p className="text-sm text-gray-600">Current KYC Status:</p>
             <span
-              className={`inline-flex px-3 py-1 text-sm font-medium rounded-full mt-1 ${
-                driver?.kycStatus === "approved"
-                  ? "bg-green-100 text-green-800 border-green-200"
-                  : driver?.kycStatus === "rejected"
+              className={`inline-flex px-3 py-1 text-sm font-medium rounded-full mt-1 ${driver?.kycStatus === "approved"
+                ? "bg-green-100 text-green-800 border-green-200"
+                : driver?.kycStatus === "rejected"
                   ? "bg-red-100 text-red-800 border-red-200"
                   : "bg-yellow-100 text-yellow-800 border-yellow-200"
-              }`}
+                }`}
             >
               {driver?.kycStatus || "pending"}
             </span>
@@ -702,6 +704,54 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
                 <img
                   src={driver.kyc.driver.licenseImageUrl}
                   alt="Driving License"
+                  className="w-full h-32 object-cover rounded-xl border border-gray-200"
+                />
+              </div>
+            ) : (
+              <p className="text-gray-500">Not uploaded</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Bank Documents */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 mt-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <CreditCard className="w-5 h-5" />
+          Bank Details
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-500">
+                Account Holder Name
+              </label>
+              <p className="text-gray-900">{driver?.kyc?.driver.bankDetails?.accountHolderName || "N/A"}</p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-500">
+                Account Number
+              </label>
+              <p className="text-gray-900">{driver?.kyc?.driver.bankDetails?.accountNumber || "N/A"}</p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-500">
+                IFSC Code
+              </label>
+              <p className="text-gray-900">
+                {driver?.kyc?.driver.bankDetails?.ifscCode || "N/A"}
+              </p>
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-500">
+              Bank Passbook / Cheque
+            </label>
+            {driver?.kyc?.driver.bankDetails?.passbookImageUrl ? (
+              <div className="mt-2">
+                <img
+                  src={driver.kyc.driver.bankDetails.passbookImageUrl}
+                  alt="Bank Passbook"
                   className="w-full h-32 object-cover rounded-xl border border-gray-200"
                 />
               </div>
@@ -909,11 +959,10 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
                   {driver.approvalStatus}
                 </span>
                 <span
-                  className={`px-3 py-1 text-sm font-medium rounded-2xl ${
-                    driver.isActive
-                      ? "bg-green-100 text-green-800"
-                      : "bg-red-100 text-red-800"
-                  }`}
+                  className={`px-3 py-1 text-sm font-medium rounded-2xl ${driver.isActive
+                    ? "bg-green-100 text-green-800"
+                    : "bg-red-100 text-red-800"
+                    }`}
                 >
                   {driver.isActive ? "Active" : "Inactive"}
                 </span>
@@ -932,11 +981,10 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as TabType)}
-                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium rounded-xl transition-colors ${
-                  activeTab === tab.id
-                    ? "bg-blue-50 text-blue-700 border border-blue-200"
-                    : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                }`}
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium rounded-xl transition-colors ${activeTab === tab.id
+                  ? "bg-blue-50 text-blue-700 border border-blue-200"
+                  : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                  }`}
               >
                 <Icon className="w-4 h-4" />
                 {tab.name}

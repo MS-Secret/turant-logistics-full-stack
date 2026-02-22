@@ -6,8 +6,7 @@ const UserSchema = createBaseSchema({
   userId: {
     type: String,
     required: false,
-    unique: true,
-    index: true
+    unique: true
   },
   username: {
     type: String,
@@ -75,7 +74,7 @@ const UserSchema = createBaseSchema({
     dateOfBirth: Date,
     profileImageUrl: String,
     address: {
-      street:{
+      street: {
         type: String,
         required: false,
         trim: true
@@ -131,14 +130,13 @@ const UserSchema = createBaseSchema({
       deviceId: String,
       platform: String,
       fcmToken: String,
-      deviceName:String,
+      deviceName: String,
       lastActiveAt: Date
     }]
   }
 });
 
 // Indexes for better performance
-UserSchema.index({ email: 1 });
 
 // Compound unique index: same phone can exist with different roles
 // This allows phone +916204467755 with role USER and also with role ADMIN/DRIVER
@@ -146,20 +144,20 @@ UserSchema.index({ phone: 1, role: 1 }, { unique: true, sparse: true });
 
 
 // Pre-save middleware to hash password
-UserSchema.pre('save', async function(next) {
+UserSchema.pre('save', async function (next) {
   // Only hash the password if it has been modified (or is new)
   if (!this.isModified('password')) return next();
-  
+
   try {
     // Hash password with cost of 12
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
-    
+
     // Set password changed timestamp
     if (!this.isNew) {
       this.metadata.passwordChangedAt = new Date();
     }
-    
+
     next();
   } catch (error) {
     next(error);
@@ -167,12 +165,12 @@ UserSchema.pre('save', async function(next) {
 });
 
 // Instance method to compare password
-UserSchema.methods.comparePassword = async function(candidatePassword) {
+UserSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
 // Instance method to check if password was changed after JWT was issued
-UserSchema.methods.changedPasswordAfter = function(JWTTimestamp) {
+UserSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
   if (this.metadata.passwordChangedAt) {
     const changedTimestamp = parseInt(this.metadata.passwordChangedAt.getTime() / 1000, 10);
     return JWTTimestamp < changedTimestamp;
@@ -181,7 +179,7 @@ UserSchema.methods.changedPasswordAfter = function(JWTTimestamp) {
 };
 
 // Virtual for full name
-UserSchema.virtual('fullName').get(function() {
+UserSchema.virtual('fullName').get(function () {
   return `${this.profile.firstName} ${this.profile.lastName}`;
 });
 

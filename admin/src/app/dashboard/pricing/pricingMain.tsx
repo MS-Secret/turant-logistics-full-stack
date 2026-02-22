@@ -55,7 +55,7 @@ interface PricingData {
   waitingChargePerMin: number;
   freeWaitingMinutes: number;
   returnTripFeePercentage: number;
-  nightSurchargePercentage: number;
+  nightSurchargeAmount: number;
   codHandlingFee: number;
   loadingCharge: number;
   offloadingCharge: number;

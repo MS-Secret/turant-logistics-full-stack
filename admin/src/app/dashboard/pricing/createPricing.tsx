@@ -43,7 +43,7 @@ const CreatePricing = ({ onClose, refreshData, setRefreshData, initialData }: { 
   const [waitingChargePerMin, setWaitingChargePerMin] = useState(initialData?.waitingChargePerMin || 0);
   const [freeWaitingMinutes, setFreeWaitingMinutes] = useState(initialData?.freeWaitingMinutes || 0);
   const [returnTripFeePercentage, setReturnTripFeePercentage] = useState(initialData?.returnTripFeePercentage || 0);
-  const [nightSurchargePercentage, setNightSurchargePercentage] = useState(initialData?.nightSurchargePercentage || 0);
+  const [nightSurchargeAmount, setNightSurchargeAmount] = useState(initialData?.nightSurchargeAmount || 0);
   const [codHandlingFee, setCodHandlingFee] = useState(initialData?.codHandlingFee || 0);
   const [loadingCharge, setLoadingCharge] = useState(initialData?.loadingCharge || 0);
   const [offLoadingCharge, setOffLoadingCharge] = useState(initialData?.offloadingCharge || 0); // Note: offloadingCharge vs offLoadingCharge casing
@@ -111,7 +111,7 @@ const CreatePricing = ({ onClose, refreshData, setRefreshData, initialData }: { 
       payload.append("waitingChargePerMin", waitingChargePerMin.toString());
       payload.append("freeWaitingMinutes", freeWaitingMinutes.toString());
       payload.append("returnTripFeePercentage", returnTripFeePercentage.toString());
-      payload.append("nightSurchargePercentage", nightSurchargePercentage.toString());
+      payload.append("nightSurchargeAmount", nightSurchargeAmount.toString());
       payload.append("codHandlingFee", codHandlingFee.toString());
       payload.append("loadingCharge", loadingCharge.toString());
       payload.append("offloadingCharge", offLoadingCharge.toString()); // consistent naming
@@ -502,15 +502,14 @@ const CreatePricing = ({ onClose, refreshData, setRefreshData, initialData }: { 
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="nightSurcharge">Night Surcharge (%)</Label>
+                <Label htmlFor="nightSurcharge">Night Surcharge (₹)</Label>
                 <Input
                   id="nightSurcharge"
                   type="number"
-                  value={nightSurchargePercentage}
-                  onChange={(e) => setNightSurchargePercentage(Number(e.target.value))}
+                  value={nightSurchargeAmount}
+                  onChange={(e) => setNightSurchargeAmount(Number(e.target.value))}
                   placeholder="0"
                   min="0"
-                  max="100"
                 />
               </div>
 

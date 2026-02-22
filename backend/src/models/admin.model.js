@@ -5,14 +5,12 @@ const adminSchema = createBaseSchema({
   userId: {
     type: String,
     required: true,
-    unique: true,
-    index: true
+    unique: true
   },
   adminId: {
     type: String,
     required: true,
-    unique: true,
-    index: true
+    unique: true
   },
   employeeId: {
     type: String,
@@ -80,13 +78,6 @@ const adminSchema = createBaseSchema({
   }
 });
 
-// Indexes
-adminSchema.index({ userId: 1 });
-adminSchema.index({ adminId: 1 });
-adminSchema.index({ employeeId: 1 });
-adminSchema.index({ department: 1 });
-adminSchema.index({ accessLevel: 1 });
-adminSchema.index({ isActive: 1 });
 
 const Admin = mongoose.model('Admin', adminSchema);
 
