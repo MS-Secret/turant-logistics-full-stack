@@ -302,6 +302,13 @@ const CalculateFare = async (payload) => {
       pricingData.distanceSlabs
     );
 
+    if (distanceFare === -1) {
+      return {
+        success: false,
+        message: "Distance exceeds the serviceable range for this vehicle.",
+      };
+    }
+
     // Calculate weight-based fare using helper function
     const weightFare = calculateWeightFare(weight, pricingData.weightSlabs);
 
@@ -445,6 +452,13 @@ const GetFareEstimate = async (payload) => {
       distance,
       pricingData.distanceSlabs
     );
+
+    if (distanceFare === -1) {
+      return {
+        success: false,
+        message: "Distance exceeds the serviceable range for this vehicle.",
+      };
+    }
     const weightFare = calculateWeightFare(weight, pricingData.weightSlabs);
     const orderFare = Math.max(
       pricingData.minOrderFare,
@@ -520,6 +534,11 @@ const CalculateFareAllVehiclesSuggestions = async (payload) => {
         distance,
         pricingData.distanceSlabs
       );
+
+      if (distanceFare === -1) {
+        return null; // Vehicle does not support this distance
+      }
+
       const weightFare = calculateWeightFare(weight, pricingData.weightSlabs);
       const orderFare = Math.max(
         pricingData.minOrderFare,
@@ -536,7 +555,7 @@ const CalculateFareAllVehiclesSuggestions = async (payload) => {
         vehicleImageUrl: pricingData.vehicleImageUrl,
         estimatedFare,
       };
-    });
+    }).filter(Boolean); // Remove null entries where distance exceeded limits
 
     return {
       success: true,

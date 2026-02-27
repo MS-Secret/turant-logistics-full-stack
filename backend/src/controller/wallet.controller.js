@@ -90,11 +90,45 @@ const ProcessWithdrawal = async (req, res) => {
     }
 };
 
+const GetPendingWithdrawalsAdmin = async (req, res) => {
+    try {
+        const result = await WalletService.getPendingWithdrawalsAdmin();
+        return res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const ApproveWithdrawalAdmin = async (req, res) => {
+    try {
+        const { requestId } = req.body;
+        if (!requestId) return res.status(400).json({ success: false, message: "requestId is required" });
+        const result = await WalletService.approveWithdrawalAdmin(requestId);
+        return res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const RejectWithdrawalAdmin = async (req, res) => {
+    try {
+        const { requestId, adminNote } = req.body;
+        if (!requestId) return res.status(400).json({ success: false, message: "requestId is required" });
+        const result = await WalletService.rejectWithdrawalAdmin(requestId, adminNote);
+        return res.status(result.success ? 200 : 400).json(result);
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 module.exports = {
     GetBalance,
     GetHistory,
     ProcessOrderTest,
     InitiateRecharge,
     VerifyRecharge,
-    ProcessWithdrawal
+    ProcessWithdrawal,
+    GetPendingWithdrawalsAdmin,
+    ApproveWithdrawalAdmin,
+    RejectWithdrawalAdmin
 };

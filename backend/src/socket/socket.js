@@ -211,7 +211,7 @@ const initializeSocket = (server) => {
           const nearbyDriversResult = await driverService.GetNearbyDrivers({
             lat: data.pickupLocation.latitude,
             long: data.pickupLocation.longitude,
-            radiusInKm: data.radiusInKm || 10,
+            radiusInKm: data.radiusInKm || data.radius || 5,
           });
 
           if (nearbyDriversResult.success) {

@@ -12,4 +12,9 @@ router.post("/withdraw", verifyToken, walletController.ProcessWithdrawal);
 // Internal/Admin route - typically you'd protect this more, but for dev:
 router.post("/process-order", verifyToken, walletController.ProcessOrderTest);
 
+// Admin Approval Routes
+router.get("/admin/pending", verifyToken, walletController.GetPendingWithdrawalsAdmin);
+router.post("/admin/approve", verifyToken, walletController.ApproveWithdrawalAdmin);
+router.post("/admin/reject", verifyToken, walletController.RejectWithdrawalAdmin);
+
 module.exports = router;

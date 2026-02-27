@@ -317,6 +317,8 @@ const verifyRecharge = async (driverId, orderId) => {
     }
 };
 
+const WithdrawalRequest = require("../models/withdrawalRequest.model");
+
 const processWithdrawal = async (driverId, amount, method, bankDetails, upiDetails) => {
     try {
         let wallet = await Wallet.findOne({ driver: driverId });
@@ -363,27 +365,88 @@ const processWithdrawal = async (driverId, amount, method, bankDetails, upiDetai
             return { success: false, message: "Bank or UPI details missing for withdrawal" };
         }
 
+        const transferIdRef = `WD_${Date.now()}_${driverId.toString().substring(0, 5)}`;
+
+        // Instead of immediate Cashfree request, create a Pending Withdrawal Request
+        const withdrawalReq = new WithdrawalRequest({
+            driver: driverId,
+            amount: amount,
+            method: withdrawInfo.method,
+            bankDetails: withdrawInfo.method === 'BANK' ? withdrawInfo.bankDetails : undefined,
+            upiDetails: withdrawInfo.method === 'UPI' ? withdrawInfo.upiDetails : undefined,
+            status: "PENDING"
+        });
+        await withdrawalReq.save();
+
+        // Lock/Deduct the amount from balance as PENDING
+        wallet.balance -= amount;
+        wallet.transactions.push({
+            type: "DEBIT",
+            amount: amount,
+            description: `Withdrawal Request (${withdrawInfo.method})`,
+            status: "PENDING"
+        });
+
+        await wallet.save();
+
+        return {
+            success: true,
+            message: "Withdrawal request submitted for Admin approval.",
+            data: { newBalance: wallet.balance, pendingRequestId: withdrawalReq._id }
+        };
+
+    } catch (error) {
+        console.error("Error processing withdrawal:", error);
+        return { success: false, message: error.message };
+    }
+};
+
+// --- NEW ADMIN FUNCTIONS ---
+
+const getPendingWithdrawalsAdmin = async () => {
+    try {
+        const requests = await WithdrawalRequest.find({ status: "PENDING" }).populate("driver").lean();
+
+        // Populate User details manually because Driver.userId is a String, not an ObjectId
+        for (let req of requests) {
+            if (req.driver && req.driver.userId) {
+                const user = await User.findOne({ userId: req.driver.userId }).lean();
+                // Attach the user data directly to the driver object for the frontend
+                req.driver.userId = user || { fullName: "Unknown", phone: "N/A" };
+            }
+        }
+
+        return { success: true, data: requests };
+    } catch (error) {
+        console.error("Error fetching pending withdrawals:", error);
+        return { success: false, message: error.message };
+    }
+};
+
+const approveWithdrawalAdmin = async (requestId) => {
+    try {
+        const withdrawalReq = await WithdrawalRequest.findById(requestId);
+        if (!withdrawalReq) return { success: false, message: "Request not found" };
+        if (withdrawalReq.status !== "PENDING") return { success: false, message: "Request is not PENDING" };
+
+        const driver = await Driver.findById(withdrawalReq.driver);
+        const user = await User.findOne({ userId: driver.userId });
+
         // Prepare Beneficiary
         const beneId = `BENE_${driver.userId}`;
         const beneDetails = {
             beneId: beneId,
-            name: withdrawInfo.method === 'BANK' ? withdrawInfo.bankDetails?.accountHolderName || user?.fullName : (user?.fullName || "Driver"),
+            name: withdrawalReq.method === 'BANK' ? withdrawalReq.bankDetails?.accountHolderName || user?.fullName : (user?.fullName || "Driver"),
             email: user?.email || "driver@turant.com",
             phone: user?.mobileNumber || "9999999999",
             address1: "Turant Logistics"
         };
 
-        if (withdrawInfo.method === 'BANK') {
-            if (!withdrawInfo.bankDetails?.accountNumber || !withdrawInfo.bankDetails?.ifsc) {
-                return { success: false, message: "Incomplete Bank Details" };
-            }
-            beneDetails.bankAccount = withdrawInfo.bankDetails.accountNumber;
-            beneDetails.ifsc = withdrawInfo.bankDetails.ifsc;
-        } else if (withdrawInfo.method === 'UPI') {
-            if (!withdrawInfo.upiDetails?.upiId) {
-                return { success: false, message: "Incomplete UPI Details" };
-            }
-            beneDetails.vpa = withdrawInfo.upiDetails.upiId;
+        if (withdrawalReq.method === 'BANK') {
+            beneDetails.bankAccount = withdrawalReq.bankDetails.accountNumber;
+            beneDetails.ifsc = withdrawalReq.bankDetails.ifsc;
+        } else {
+            beneDetails.vpa = withdrawalReq.upiDetails.upiId;
         }
 
         // Add Beneficiary to Cashfree
@@ -393,38 +456,92 @@ const processWithdrawal = async (driverId, amount, method, bankDetails, upiDetai
         }
 
         // Request Transfer
-        const transferId = `WD_${Date.now()}_${driverId.toString().substring(0, 5)}`;
+        const transferId = `WD_${Date.now()}_${withdrawalReq._id.toString().substring(0, 5)}`;
         const transferDetails = {
             beneId: beneId,
-            amount: amount.toString(),
+            amount: withdrawalReq.amount.toString(),
             transferId: transferId,
-            transferMode: withdrawInfo.method === 'BANK' ? 'IMPS' : 'UPI',
+            transferMode: withdrawalReq.method === 'BANK' ? 'IMPS' : 'UPI',
         };
 
         const transferResult = await cashfreeService.requestTransfer(transferDetails);
         if (!transferResult.success) {
+            withdrawalReq.status = "FAILED";
+            withdrawalReq.adminNote = "Cashfree Transfer Failed: " + transferResult.error;
+            await withdrawalReq.save();
             return { success: false, message: "Transfer failed: " + transferResult.error };
         }
 
-        // Only after successful initiation do we deduct the balance
-        wallet.balance -= amount;
-        wallet.transactions.push({
-            type: "DEBIT",
-            amount: amount,
-            description: `Withdrawal (${withdrawInfo.method}): ${transferId}`,
-            status: "SUCCESS"
-        });
+        // Transfer successful
+        withdrawalReq.status = "APPROVED";
+        withdrawalReq.transferId = transferId;
+        await withdrawalReq.save();
 
-        await wallet.save();
+        // Mark the transaction in wallet as SUCCESS
+        const wallet = await Wallet.findOne({ driver: driver._id });
+        if (wallet) {
+            const tx = wallet.transactions.find(t =>
+                t.amount === withdrawalReq.amount &&
+                t.type === "DEBIT" &&
+                t.status === "PENDING" &&
+                t.description.includes("Withdrawal Request")
+            );
+            if (tx) {
+                tx.status = "SUCCESS";
+                tx.description = `Withdrawal (${withdrawalReq.method}): ${transferId}`;
+                await wallet.save();
+            }
+        }
 
-        return {
-            success: true,
-            message: "Withdrawal processed successfully",
-            data: { newBalance: wallet.balance, transferId }
-        };
+        return { success: true, message: "Withdrawal approved and processed successfully", data: { transferId } };
 
     } catch (error) {
-        console.error("Error processing withdrawal:", error);
+        console.error("Error approving withdrawal:", error);
+        return { success: false, message: error.message };
+    }
+};
+
+const rejectWithdrawalAdmin = async (requestId, adminNote) => {
+    try {
+        const withdrawalReq = await WithdrawalRequest.findById(requestId);
+        if (!withdrawalReq) return { success: false, message: "Request not found" };
+        if (withdrawalReq.status !== "PENDING") return { success: false, message: "Request is not PENDING" };
+
+        withdrawalReq.status = "REJECTED";
+        withdrawalReq.adminNote = adminNote || "Rejected by Admin";
+        await withdrawalReq.save();
+
+        // Refund the amount to wallet and remove or mark tx as failed
+        const wallet = await Wallet.findOne({ driver: withdrawalReq.driver });
+        if (wallet) {
+            wallet.balance += withdrawalReq.amount; // Refund
+
+            const tx = wallet.transactions.find(t =>
+                t.amount === withdrawalReq.amount &&
+                t.type === "DEBIT" &&
+                t.status === "PENDING" &&
+                t.description.includes("Withdrawal Request")
+            );
+
+            if (tx) {
+                tx.status = "FAILED";
+                tx.description = `Withdrawal Rejected: ${adminNote}`;
+            } else {
+                wallet.transactions.push({
+                    type: "CREDIT",
+                    amount: withdrawalReq.amount,
+                    description: `Refund: Withdrawal Rejected`,
+                    status: "SUCCESS"
+                });
+            }
+
+            await wallet.save();
+        }
+
+        return { success: true, message: "Withdrawal rejected and amount refunded" };
+
+    } catch (error) {
+        console.error("Error rejecting withdrawal:", error);
         return { success: false, message: error.message };
     }
 };
@@ -435,6 +552,8 @@ module.exports = {
     processOrderPayment,
     getHistory,
     initiateRecharge,
-    verifyRecharge,
-    processWithdrawal
+    processWithdrawal,
+    getPendingWithdrawalsAdmin,
+    approveWithdrawalAdmin,
+    rejectWithdrawalAdmin
 };

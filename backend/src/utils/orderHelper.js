@@ -7,19 +7,19 @@ const isCheckNightTime = (dateTime = new Date()) => {
 // Helper function to validate and get distance fare
 const calculateDistanceFare = (distance, distanceSlabs) => {
   if (!distanceSlabs || distanceSlabs.length === 0) return 0;
-  
+
   for (const slab of distanceSlabs) {
     if (distance >= slab.minDistance && (slab.maxDistance == null || distance <= slab.maxDistance)) {
       return distance * slab.farePerKm;
     }
   }
-  return 0;
+  return -1; // Indicates distance is out of bounds for defined slabs
 };
 
 // Helper function to validate and get weight fare
 const calculateWeightFare = (weight, weightSlabs) => {
   if (!weightSlabs || weightSlabs.length === 0) return 0;
-  
+
   for (const slab of weightSlabs) {
     if (weight >= slab.minWeight && (slab.maxWeight == null || weight <= slab.maxWeight)) {
       return weight * slab.farePerKg;

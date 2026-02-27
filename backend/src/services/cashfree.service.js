@@ -30,6 +30,7 @@ const createOrder = async (orderData) => {
     }
 
     const orderRequest = {
+      order_id: orderId,
       order_amount: amount.toString(),
       order_currency: currency,
       customer_details: {

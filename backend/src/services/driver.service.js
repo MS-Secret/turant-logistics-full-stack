@@ -312,7 +312,7 @@ const UpdateCurrentLocation = async (payload) => {
 
 const GetNearbyDrivers = async (payload) => {
   try {
-    const { lat, long, radiusInKm = 10, orderId } = payload;
+    const { lat, long, radiusInKm = 5, orderId } = payload;
     console.log("order id in get nearby drivers:", orderId);
     // Validate required parameters
     if (!lat || !long) {
@@ -416,7 +416,7 @@ const SendRideRequestToDrivers = async (payload) => {
       rideType,
       estimatedFare,
       driverIds = [],
-      radiusInKm = 10,
+      radiusInKm = 5,
       orderId,
     } = payload;
 

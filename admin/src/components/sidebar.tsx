@@ -61,6 +61,12 @@ const Sidebar = () => {
       color: 'text-yellow-500'
     },
     {
+      title: 'Withdrawals',
+      icon: DollarSign,
+      href: '/dashboard/withdrawals',
+      color: 'text-teal-500'
+    },
+    {
       title: 'Analytics',
       icon: BarChart3,
       href: '/dashboard/analytics',
@@ -108,6 +114,7 @@ const Sidebar = () => {
       href: '/dashboard/settings',
       color: 'text-gray-500'
     }
+   
   ]
 
   const isActive = (href: string) => {
