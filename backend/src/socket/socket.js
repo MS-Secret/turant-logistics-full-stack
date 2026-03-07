@@ -527,6 +527,14 @@ const initializeSocket = (server) => {
               if (pricingResult.success) {
                 finalAmount = pricingResult.data.finalFare;
                 fareDetails = pricingResult.data.breakdown;
+
+                // IMPORTANT: Save the updated waiting-charge and finalAmount straight to the Database!
+                if (order.pricing) {
+                  order.pricing.totalAmount = finalAmount;
+                  if (!order.pricing.waitingCharge) order.pricing.waitingCharge = 0;
+                  order.pricing.waitingCharge = fareDetails?.waitingCharge || 0;
+                  await order.save();
+                }
               }
             }
           }

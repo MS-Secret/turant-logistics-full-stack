@@ -152,6 +152,11 @@ const orderSchema = createBaseSchema({
       enum: ['CASH', 'ONLINE', 'WALLET'],
       required: false
     },
+    cashCollectionAt: {
+      type: String,
+      enum: ['PICKUP', 'DROP'],
+      required: false
+    },
     status: {
       type: String,
       enum: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'REFUNDED'],
@@ -210,6 +215,10 @@ const orderSchema = createBaseSchema({
       review: String,
       ratedAt: Date
     }
+  },
+  invoiceUrl: {
+    type: String,
+    required: false
   }
 });
 

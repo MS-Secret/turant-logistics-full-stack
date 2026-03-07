@@ -99,6 +99,7 @@ const CreateTransaction = async (payload) => {
             : payment.method?.includes("Cash")
               ? "CASH"
               : "WALLET",
+        cashCollectionAt: payment.cashCollectionAt || null,
       },
       pricing: {
         totalAmount: payment.amount,

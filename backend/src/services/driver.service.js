@@ -572,6 +572,9 @@ const CompleteRideByDriver = async ({ driverId, orderId, amount }) => {
     driver.earnings.totalEarnings += safeAmount;
     driver.earnings.todayEarnings += safeAmount;
 
+    // Driver becomes available again after completing the ride
+    driver.workingStatus = "ONLINE";
+
     await driver.save();
     const payload = {
       orderId: orderId,

@@ -5,6 +5,7 @@ const NotificationModel = require("../models/notification.model");
 const { sendToMultipleDevices } = require("../config/firebase.config");
 const { getUserById } = require("./user.service");
 const cashfreeService = require("./cashfree.service");
+const { generateAndUploadInvoice } = require("../utils/pdfGenerator");
 
 const sendRideEventNotification = async (userId, title, body, orderId) => {
   try {
@@ -25,7 +26,7 @@ const sendRideEventNotification = async (userId, title, body, orderId) => {
         userId,
         title,
         message: body,
-        type: "RIDE_UPDATE",
+        type: "order",
         read: false
       });
 
@@ -33,7 +34,7 @@ const sendRideEventNotification = async (userId, title, body, orderId) => {
         title,
         body,
         data: {
-          type: "RIDE_UPDATE",
+          type: "order",
           orderId: orderId?.toString() || "",
           timestamp: new Date().toISOString()
         }
@@ -580,6 +581,147 @@ const cancelOrderWithRefund = async (orderId) => {
   }
 };
 
+const getOrderInvoice = async (orderId) => {
+  try {
+    const orderDoc = await OrderModel.findOne({ orderId }).exec();
+    if (!orderDoc) {
+      return { success: false, message: "Order not found" };
+    }
+
+    if (orderDoc.invoiceUrl) {
+      return {
+        success: true,
+        message: "Invoice retrieved successfully",
+        data: { invoiceUrl: orderDoc.invoiceUrl }
+      };
+    }
+
+    // Invoice doesn't exist yet, we generate it
+    if (orderDoc.status !== "COMPLETED") {
+      // We can still generate it, but ideally it's for completed 
+    }
+
+    const { data: orderDetails } = await getOrderById({ orderId });
+
+    if (!orderDetails) {
+      return { success: false, message: "Could not fetch full order details for invoice" };
+    }
+
+    const newInvoiceUrl = await generateAndUploadInvoice(orderDetails);
+
+    orderDoc.invoiceUrl = newInvoiceUrl;
+    await orderDoc.save();
+
+    return {
+      success: true,
+      message: "Invoice generated successfully",
+      data: { invoiceUrl: newInvoiceUrl }
+    };
+  } catch (error) {
+    console.error("Error generating/fetching invoice:", error);
+    return {
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    };
+  }
+};
+
+const adminForceCancelRide = async (orderId, adminId, reason = "USER_NO_SHOW", io) => {
+  try {
+    const order = await OrderModel.findOne({ orderId });
+    if (!order) {
+      return { success: false, message: "Order not found" };
+    }
+
+    if (order.status === "CANCELLED" || order.status === "COMPLETED") {
+      return { success: false, message: `Order cannot be force cancelled because it is already ${order.status}` };
+    }
+
+    const assignedDriverId = order.driverId;
+
+    // Optional: Issue a refund if requested/applicable via cashfree
+    let refundMessage = "Admin Force Cancelled.";
+    if (order.paymentDetails?.status === "SUCCESS" && order.paymentDetails?.transaction?.modeOfPayment === "ONLINE") {
+      const transactionId = order.paymentDetails.transaction.transactionId;
+      const amount = order.paymentDetails.transaction.amount;
+
+      const transaction = await transactionsModel.findOne({ transactionId });
+      let cashfreeOrderId = transaction?.cashfreeOrderId || orderId;
+
+      if (amount && amount > 0) {
+        const refundResponse = await cashfreeService.createRefund(
+          cashfreeOrderId,
+          amount,
+          `ADMIN_REF_${orderId}_${Date.now()}`
+        );
+        if (refundResponse.success) {
+          order.paymentDetails.status = "REFUND_INITIATED";
+          order.refundAmount = amount;
+          refundMessage = "Admin force cancelled and refund initiated.";
+        } else {
+          refundMessage = "Admin force cancelled, but online refund failed.";
+        }
+      }
+    }
+
+    // Set order properties
+    order.status = "CANCELLED";
+    order.cancellationReason = reason;
+    order.cancelledBy = adminId || "ADMIN";
+
+    await order.save();
+
+    // Reset Driver availability if there was a driver assigned
+    if (assignedDriverId) {
+      const driver = await require("../models/driver.model").findOne({ userId: assignedDriverId });
+      if (driver) {
+        driver.workingStatus = "ONLINE";
+        await driver.save();
+      }
+
+      // Emit socket event to instantly clear the active ride on the driver app
+      if (io) {
+        io.to(`user_${assignedDriverId}`).emit("ride_cancelled_by_admin", {
+          orderId,
+          message: "The support team has cancelled your current ride. You are now free to accept new orders."
+        });
+      }
+
+      // Notify Driver about Admin cancellation via FCM
+      await sendRideEventNotification(
+        assignedDriverId,
+        "Ride Cancelled by Admin 🛠️",
+        "The support team has cancelled your current ride. You are now available for new orders.",
+        orderId
+      );
+    }
+
+    // Notify Customer about Admin cancellation
+    if (order.userId) {
+      await sendRideEventNotification(
+        order.userId,
+        "Ride Cancelled by Support 📞",
+        "Your ride was cancelled by our support team because the driver could not reach you at the pickup location.",
+        orderId
+      );
+    }
+
+    return {
+      success: true,
+      message: refundMessage,
+      data: order,
+    };
+  } catch (error) {
+    console.error("Error in adminForceCancelRide:", error);
+    return {
+      success: false,
+      message: "Internal server error during admin force cancellation",
+      error: error.message,
+    };
+  }
+};
+
 module.exports = {
   getAllOrders,
   getConsumersOrders,
@@ -591,4 +733,6 @@ module.exports = {
   updateRideStatusByOrderId,
   SubmitRideRating,
   cancelOrderWithRefund,
+  getOrderInvoice,
+  adminForceCancelRide,
 };
