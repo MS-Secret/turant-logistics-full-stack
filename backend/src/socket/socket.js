@@ -5,6 +5,7 @@ const driverService = require("../services/driver.service");
 const { VerifyTokenThroughSocket } = require("../middleware/auth.middleware");
 const { UpdateOrderStatusWithDriver, updateRideStatusByOrderId } = require("../services/order.service");
 const PricingService = require("../services/pricing.service");
+const { calculateDistance } = require("../utils/locationUtils");
 
 // Store active ride requests and their timers
 const activeRideRequests = new Map();
@@ -100,6 +101,51 @@ const initializeSocket = (server) => {
         return;
       }
 
+      // Helper function for continuous matching
+      const checkAndNotifyDriver = (driver, ioObj) => {
+        if (!driver || driver.workingStatus !== "ONLINE" || !driver.currentLocation || driver.currentLocation.latitude === 0) return;
+
+        for (const [requestId, request] of activeRideRequests.entries()) {
+          if (request.status !== "PENDING") continue;
+          if (request.notifiedDrivers && request.notifiedDrivers.has(driver.userId)) continue;
+
+          // Check vehicle constraints (with normalizer for consumer vs KYC naming)
+          const vehicleTypeNormalizer = { '2 Wheeler': '2w', '2 wheeler': '2w', '2w': '2w', '3 Wheeler': '3w', '3 wheeler': '3w', '3w': '3w', 'Truck': 'truck', 'truck': 'truck' };
+          const kycVeh = driver.kycDetailsId?.vehicle;
+          if (!kycVeh) continue;
+          const reqVehNorm = request.vehicleType ? (vehicleTypeNormalizer[request.vehicleType] || request.vehicleType) : null;
+          const kycVehNorm = kycVeh.vehicleType ? (vehicleTypeNormalizer[kycVeh.vehicleType] || kycVeh.vehicleType) : null;
+          if (reqVehNorm && kycVehNorm && reqVehNorm !== kycVehNorm) continue;
+          if (request.vehicleBodyType && kycVeh.vehicleBodyType && kycVeh.vehicleBodyType !== request.vehicleBodyType) continue;
+          if (request.vehicleFuelType && kycVeh.vehicleFuelType && kycVeh.vehicleFuelType !== request.vehicleFuelType) continue;
+
+          // Check distance
+          const distance = calculateDistance(
+            request.pickupLocation.latitude,
+            request.pickupLocation.longitude,
+            driver.currentLocation.latitude,
+            driver.currentLocation.longitude
+          );
+
+          if (distance <= request.radiusInKm) {
+            // Match found! Push to this driver
+            request.notifiedDrivers.add(driver.userId);
+            ioObj.to(`user_${driver.userId}`).emit("ride_request_received", {
+              requestId: requestId,
+              rideData: {
+                // Ensure all crucial fields from request are extracted properly if nested differently, 
+                // but usually activeRideRequests has the flat spread of rideRequestData already.
+                ...request,
+              },
+              consumerData: request.consumerData,
+              distance: parseFloat(distance.toFixed(2)),
+              orderId: request.orderId || null,
+            });
+            console.log(`Pushed active request ${requestId} to newly online/nearby driver ${driver.userId}`);
+          }
+        }
+      };
+
       //handle send-location change of driver
       socket.on("send-location", async (data) => {
         console.log("location received from driver", data);
@@ -113,13 +159,53 @@ const initializeSocket = (server) => {
             socket.emit("location_update_error", { message: result.message });
             return;
           }
+
           socket.emit("location_update_success", {
             message: result.message,
             data: result.data,
           });
+
+          // Continuous matching: Check if this new location puts the driver within range of any active requests
+          if (result.data) {
+            checkAndNotifyDriver(result.data, io);
+            
+            // Broadcast live location to Admin Tracking Dashboard
+            try {
+              const User = require("../models/user.model");
+              const user = await User.findOne({ userId: result.data.userId }).select("profile phone");
+              const fullName = user?.profile ? `${user.profile.firstName || ''} ${user.profile.lastName || ''}`.trim() : "Driver";
+
+              io.to("admin_tracking_room").emit("admin-driver-location-update", {
+                driverId: socket.userId || (data.driverId || "unknown"),
+                name: fullName || "Driver",
+                mobile: user?.phone || "N/A",
+                vehicleType: result.data.kycDetailsId?.vehicle?.vehicleType || "Vehicle",
+                location: {
+                  latitude: data.latitude,
+                  longitude: data.longitude
+                },
+                status: result.data.workingStatus || "ONLINE"
+              });
+            } catch (err) {
+              console.log("Error finding user for admin tracking broadcast", err);
+            }
+          }
         } catch (error) {
           console.log("error while getting send-location from driver:", error);
         }
+      });
+
+      // Handle status update to ONLINE
+      socket.on("update_working_status", async (data) => {
+        // I will assume there's a status update event, but actually the socket API doesn't have it natively here.
+        // The partner app calls an HTTP route for status update `UpdateKycStatus` or similar? 
+        // Let's rely on send-location since driver app sends location frequently when ONLINE.
+      });
+
+      // Handle Admin joining tracking room
+      socket.on("join-admin-tracking", () => {
+        socket.join("admin_tracking_room");
+        console.log(`Admin joined tracking room: ${socket.id}`);
       });
 
       //handle request from consumer to get near by drivers
@@ -201,21 +287,32 @@ const initializeSocket = (server) => {
 
           activeRideRequests.set(rideRequestId, {
             ...result.data.rideRequestData,
+            consumerData: result.data.consumerData,
             consumerSocketId: socket.id,
             consumerUserId: socket.userId,
             status: "PENDING",
             orderId: orderId,
+            vehicleType: data.rideType,
+            vehicleBodyType: data.vehicleBodyType,
+            vehicleFuelType: data.vehicleFuelType,
+            pickupLocation: data.pickupLocation,
+            radiusInKm: data.radiusInKm || data.radius || 5,
+            notifiedDrivers: new Set()
           });
 
-          // Send ride request to all nearby drivers
+          // Send ride request to all nearby drivers (strict vehicle matching via normalizer)
           const nearbyDriversResult = await driverService.GetNearbyDrivers({
             lat: data.pickupLocation.latitude,
             long: data.pickupLocation.longitude,
             radiusInKm: data.radiusInKm || data.radius || 5,
+            vehicleType: data.rideType,
+            vehicleBodyType: data.vehicleBodyType,
+            vehicleFuelType: data.vehicleFuelType,
           });
 
           if (nearbyDriversResult.success) {
             nearbyDriversResult.data.drivers.forEach((driver) => {
+              activeRideRequests.get(rideRequestId).notifiedDrivers.add(driver.userId);
               io.to(`user_${driver.userId}`).emit("ride_request_received", {
                 requestId: rideRequestId,
                 rideData: result.data.rideRequestData,
@@ -224,6 +321,7 @@ const initializeSocket = (server) => {
                 orderId: orderId || null,
               });
             });
+            console.log(`✅ Emitted ride_request_received to ${nearbyDriversResult.data.drivers.length} drivers via Socket`);
 
             // Send FCM Notification as backup/background alert
             // Pass orderId separately since rideRequestData doesn't contain it
@@ -255,7 +353,7 @@ const initializeSocket = (server) => {
                 io.emit("ride_request_expired", { requestId: rideRequestId });
               }
             }
-          }, 2 * 60 * 1000); // 2 minutes
+          }, 10 * 60 * 1000); // 10 minutes
 
           rideRequestTimers.set(rideRequestId, timer);
 
@@ -512,29 +610,43 @@ const initializeSocket = (server) => {
           let fareDetails = null;
 
           if (order) {
+            // Calculate actual duration if not already set (safety check)
+            let waitTime = order.waitingInfo?.duration || 0;
+            if (waitTime === 0 && order.waitingInfo?.startTime && order.waitingInfo?.endTime) {
+               const start = new Date(order.waitingInfo.startTime);
+               const end = new Date(order.waitingInfo.endTime);
+               waitTime = Math.max(0, Math.round((end - start) / 60000));
+            }
+
             const pricingPayload = {
-              distance: order.distance || 5, // Fallback if missing, though should be there
-              weight: order.packageDetails?.weight || '1kg', // Need parsing if string
+              distance: order.distance || 5, 
+              weight: order.packageDetails?.weight || '1kg', 
               vehicleType: order.vehicleDetails?.vehicleType,
               vehicleId: order.vehicleDetails?.vehicleId,
-              waitTimeMinutes: order.waitingInfo?.duration || 0,
-              // ... other flags like isNightTime could be passed if tracked
+              waitTimeMinutes: waitTime,
+              isCOD: order.payment?.method === "CASH" || order.payment?.method === "COD"
             };
 
-            // If we have valid vehicle/pricing info, recalculate
-            if (pricingPayload.vehicleId) {
+            // Recalculate if we have vehicle info (even if specific ID is missing, service handles fallback)
+            if (pricingPayload.vehicleType) {
               const pricingResult = await PricingService.CalculateFare(pricingPayload);
               if (pricingResult.success) {
                 finalAmount = pricingResult.data.finalFare;
                 fareDetails = pricingResult.data.breakdown;
 
-                // IMPORTANT: Save the updated waiting-charge and finalAmount straight to the Database!
-                if (order.pricing) {
-                  order.pricing.totalAmount = finalAmount;
-                  if (!order.pricing.waitingCharge) order.pricing.waitingCharge = 0;
-                  order.pricing.waitingCharge = fareDetails?.waitingCharge || 0;
-                  await order.save();
-                }
+                // Sync all pricing components to the Order document
+                if (!order.pricing) order.pricing = {};
+                order.pricing.totalAmount = finalAmount;
+                order.pricing.waitingCharge = fareDetails?.waitingCharge || 0;
+                order.pricing.platformSurcharge = fareDetails?.platformSurcharge || 0;
+                order.pricing.discount = fareDetails?.discount || 0;
+
+                // Also update legacy field for wallet and invoice compatibility
+                if (!order.waitingInfo) order.waitingInfo = {};
+                order.waitingInfo.cost = fareDetails?.waitingCharge || 0;
+                order.waitingInfo.duration = waitTime;
+                
+                await order.save();
               }
             }
           }

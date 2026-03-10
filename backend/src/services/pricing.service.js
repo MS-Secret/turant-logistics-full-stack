@@ -279,7 +279,7 @@ const CalculateFare = async (payload) => {
     }
 
     // Get pricing data
-    const pricingData = await pricingModel.findOne({
+    let pricingData = await pricingModel.findOne({
       _id: vehicleId,
       vehicleType,
       isActive: true,
@@ -287,9 +287,22 @@ const CalculateFare = async (payload) => {
     });
 
     if (!pricingData) {
-      return {
-        success: false,
-        message: "No pricing data found for the given vehicle",
+      console.warn(`[Pricing Service] No pricing data found for vehicleId: ${vehicleId}, vehicleType: ${vehicleType}. Using default fallbacks.`);
+      // Fallback to default rates if vehicle configuration is missing
+      pricingData = {
+        minOrderFare: 49,
+        distanceSlabs: [{ minDistance: 0, farePerKm: 10 }],
+        weightSlabs: [{ minWeight: 0, farePerKg: 0 }],
+        platformSurchargePercentage: 12,
+        freeWaitingMinutes: 5,
+        waitingChargePerMin: 2,
+        discountPercentage: 0,
+        nightSurchargeAmount: 15,
+        codHandlingFee: 10,
+        loadingCharge: 0,
+        offloadingCharge: 0,
+        extraHandsCharge: 0,
+        returnTripFeePercentage: 70
       };
     }
 
@@ -552,6 +565,8 @@ const CalculateFareAllVehiclesSuggestions = async (payload) => {
         vehicleId: pricingData._id,
         vehicleType: pricingData.vehicleType,
         vehicleName: pricingData.vehicleName,
+        vehicleBodyType: pricingData.vehicleBodyType,
+        vehicleFuelType: pricingData.vehicleFuelType,
         vehicleImageUrl: pricingData.vehicleImageUrl,
         estimatedFare,
       };

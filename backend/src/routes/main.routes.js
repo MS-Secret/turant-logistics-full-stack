@@ -7,11 +7,13 @@ const pricingRoutes = require("./pricing.routes");
 const notificationRoutes = require("./notification.routes");
 const walletRoutes = require("./wallet.routes");
 const campaignRoutes = require("./campaign.routes");
+const adminRoutes = require("./admin.routes");
 
 Router.use("/auth", authRoutes);
 Router.use("/kyc", kycRoutes);
 Router.use("/orders", orderRoutes);
 Router.use("/pricing", pricingRoutes);
+Router.use("/admin", adminRoutes);
 Router.use("/transactions", transactionsRoutes);
 Router.use("/notification", notificationRoutes);
 Router.use("/wallet", walletRoutes);

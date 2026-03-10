@@ -228,7 +228,7 @@ const UpdateDriverWorkingStatus = async (payload) => {
         workingStatus: status,
       },
       { new: true }
-    );
+    ).populate("kycDetailsId");
     if (lat && long) {
       driver.currentLocation.latitude = lat;
       driver.currentLocation.longitude = long;
@@ -287,7 +287,7 @@ const UpdateCurrentLocation = async (payload) => {
         },
       },
       { new: true }
-    );
+    ).populate("kycDetailsId");
     if (!driver) {
       return {
         success: false,
@@ -312,8 +312,9 @@ const UpdateCurrentLocation = async (payload) => {
 
 const GetNearbyDrivers = async (payload) => {
   try {
-    const { lat, long, radiusInKm = 5, orderId } = payload;
+    const { lat, long, radiusInKm = 5, orderId, vehicleType, vehicleBodyType, vehicleFuelType } = payload;
     console.log("order id in get nearby drivers:", orderId);
+    console.log("Looking for vehicle:", { vehicleType, vehicleBodyType, vehicleFuelType });
     // Validate required parameters
     if (!lat || !long) {
       return {
@@ -329,13 +330,57 @@ const GetNearbyDrivers = async (payload) => {
       };
     }
 
-    // Find all active drivers
-    const activeDrivers = await Driver.find({
+    // Find all active drivers and populate their KYC details for vehicle matching
+    const activeDriversQuery = await Driver.find({
       workingStatus: "ONLINE",
       isActive: true,
       "currentLocation.latitude": { $ne: 0 },
       "currentLocation.longitude": { $ne: 0 },
-    }).select("currentLocation userId driverId ratings");
+    })
+      .select("currentLocation userId driverId ratings kycDetailsId")
+      .populate("kycDetailsId");
+
+    // Filter drivers based on requested vehicle attributes
+    let activeDrivers = activeDriversQuery;
+
+    // Normalizer: maps consumer-side vehicle type names to KYC-stored values
+    const vehicleTypeNormalizer = {
+      '2 Wheeler': '2w',
+      '2 wheeler': '2w',
+      '2w': '2w',
+      '3 Wheeler': '3w',
+      '3 wheeler': '3w',
+      '3w': '3w',
+      'Truck': 'truck',
+      'truck': 'truck',
+    };
+
+    const normalizedVehicleType = vehicleType ? (vehicleTypeNormalizer[vehicleType] || vehicleType) : null;
+
+    if (normalizedVehicleType) {
+      activeDrivers = activeDriversQuery.filter((driver) => {
+        const kycVeh = driver.kycDetailsId?.vehicle;
+        if (!kycVeh) return false;
+
+        // Check Base Vehicle Type using normalized value
+        const kycNormalized = kycVeh.vehicleType ? (vehicleTypeNormalizer[kycVeh.vehicleType] || kycVeh.vehicleType) : null;
+        if (kycNormalized !== normalizedVehicleType) {
+          return false;
+        }
+
+        // Strictly match body type if the consumer requested one
+        if (vehicleBodyType && kycVeh.vehicleBodyType && kycVeh.vehicleBodyType !== vehicleBodyType) {
+          return false;
+        }
+
+        // Strictly match fuel type if the consumer requested one
+        if (vehicleFuelType && kycVeh.vehicleFuelType && kycVeh.vehicleFuelType !== vehicleFuelType) {
+          return false;
+        }
+
+        return true;
+      });
+    }
 
     if (!activeDrivers || activeDrivers.length === 0) {
       return {
@@ -437,11 +482,14 @@ const SendRideRequestToDrivers = async (payload) => {
         isActive: true,
       }).select("userId");
     } else {
-      // Find nearby drivers automatically
+      // Find nearby drivers automatically (with vehicle matching)
       const nearbyResult = await GetNearbyDrivers({
         lat: pickupLocation.latitude,
         long: pickupLocation.longitude,
         radiusInKm,
+        vehicleType: rideType,
+        vehicleBodyType: payload.vehicleBodyType,
+        vehicleFuelType: payload.vehicleFuelType,
       });
 
       if (!nearbyResult.success) {
@@ -476,7 +524,7 @@ const SendRideRequestToDrivers = async (payload) => {
 
     // Get user details for consumer
     const consumer = await User.findOne({ userId: consumerUserId }).select(
-      "firstName lastName phoneNumber profilePicture"
+      "userId username phone profile.firstName profile.lastName profile.profileImageUrl"
     );
 
     const targetUserIds = targetDrivers.map((driver) => driver.userId);
@@ -488,8 +536,8 @@ const SendRideRequestToDrivers = async (payload) => {
     if (targetUserIds && targetUserIds.length > 0) {
       const notificationDocs = targetUserIds.map(uid => ({
         userId: uid,
-        title: "New Ride Request",
-        message: `New ride request from ${consumer?.firstName || "Customer"}`,
+        title: "New Delivery Request",
+        message: `New delivery request from ${consumer?.firstName || "Customer"}`,
         type: 'order',
         read: false
       }));
@@ -506,8 +554,8 @@ const SendRideRequestToDrivers = async (payload) => {
           user.metadata.deviceInfo?.map((device) => device.fcmToken) || []
       ),
       {
-        title: "New Ride Request",
-        body: `New ride request from ${consumer?.firstName || "Customer"}`,
+        title: "New Delivery Request",
+        body: `New delivery request from ${consumer?.firstName || "Customer"}`,
       },
       {
         type: "RIDE_REQUEST",
@@ -747,7 +795,7 @@ const SendRideRequestNotification = async (drivers, rideData) => {
 
     // Construct notification payload
     // rideData now includes orderId (added in socket.js before calling this function)
-    const title = "New Ride Request 🚖";
+    const title = "New Delivery Request 🏍️";
     const body = `Pickup: ${rideData.pickupLocation?.address || 'Unknown Location'} - Fare: ₹${rideData.estimatedFare || 0}`;
 
     // Extract consumerData if it exists in rideData, otherwise use empty object

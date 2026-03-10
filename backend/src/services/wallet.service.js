@@ -22,19 +22,29 @@ const calculateRiderEarning = (order, pricing) => {
         payment
     } = order;
 
-    // 1. Determine Rates based on Fuel Type
-    // If vehicle is Electric, use EV rates (₹7/km), else Fuel rates (₹12/km)
-    const isEV =
-        pricing.vehicleFuelType &&
-        pricing.vehicleFuelType.toLowerCase() === "electric";
-    const ratePerKm = isEV ? 7 : 12;
+    // 1. Calculate Distance Charge (Tiered Payout Logic)
+    // Tier 1: 0 to 3.5 km -> Flat ₹28
+    // Tier 2: > 3.5 km up to 5.0 km -> ₹8 per km
+    // Tier 3: > 5.0 km -> ₹10 per km
+    
+    let distanceCharge = 0;
+    const rideDistance = order.distance || 0;
 
-    // 2. Base Fare (Minimum the rider gets)
-    const baseFare = pricing.minOrderFare;
-
-    // 3. Distance Charge
-    // Note: Use 'distance' passed calculating fare.
-    const distanceCharge = (order.distance || 0) * ratePerKm;
+    if (rideDistance <= 3.5) {
+        // Tier 1
+        distanceCharge = 28;
+    } else if (rideDistance > 3.5 && rideDistance <= 5.0) {
+        // Tier 2
+        const tier2Dist = rideDistance - 3.5;
+        distanceCharge = 28 + (tier2Dist * 8);
+    } else if (rideDistance > 5.0) {
+        // Tier 3
+        const tier3Dist = rideDistance - 5.0;
+        // First 3.5km = 28
+        // Next 1.5km (up to 5.0) = 1.5 * 8 = 12
+        // Total for first 5km = 40
+        distanceCharge = 40 + (tier3Dist * 10);
+    }
 
     // 4. Weight Charge (50% to Rider)
     // Calculate full weight fare then divide by 2

@@ -141,6 +141,21 @@ const orderSchema = createBaseSchema({
       type: Number,
       required: false,
     },
+    waitingCharge: {
+      type: Number,
+      required: false,
+      default: 0
+    },
+    platformSurcharge: {
+      type: Number,
+      required: false,
+      default: 0
+    },
+    discount: {
+      type: Number,
+      required: false,
+      default: 0
+    }
   },
   distance: {
     type: Number,

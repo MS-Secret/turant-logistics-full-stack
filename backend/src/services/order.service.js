@@ -291,7 +291,7 @@ const UpdateOrderStatusWithDriver = async (payload) => {
 
         await sendRideEventNotification(
           updatedOrder.userId,
-          "Ride Confirmed! 🚖",
+          "Ride Confirmed! 🏍️",
           `${driverName} is on the way to pick up your order.`,
           orderId
         );
@@ -412,15 +412,15 @@ const updateRideStatusByOrderId = async (payload) => {
       } else if (currentStatus === "STARTED" || currentStatus === "IN_PROGRESS") {
         await sendRideEventNotification(
           updatedOrder.userId,
-          "Trip Started! 🟢",
-          "Your trip has started securely. Track it live!",
+          "Delivery Started! 🟢",
+          "Your delivery is on the way! Track it live.",
           orderId
         );
       } else if (currentStatus === "COMPLETED") {
         await sendRideEventNotification(
           updatedOrder.userId,
-          "Trip Completed! ✅",
-          `Your trip is complete. The final fare is ₹${updatedOrder.estimatedFare || updatedOrder.finalFare || ''}. Thank you for riding with us!`,
+          "Delivery Completed! ✅",
+          `Your delivery is complete. The final fare is ₹${updatedOrder.estimatedFare || updatedOrder.finalFare || ''}. Thank you for using Turant Logistics!`,
           orderId
         );
       } else if (currentStatus === "CANCELLED") {

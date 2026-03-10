@@ -121,8 +121,15 @@ const sendToMultipleDevices = async (tokens, notification, data = {}) => {
     }
     stringifiedData.timestamp = new Date().toISOString();
 
-    // Create messages for each token
-    const messages = tokens.map(token => ({
+    // Clean up empty tokens
+    const validTokens = tokens.filter(t => t && t.trim() !== "");
+    if (validTokens.length === 0) {
+      console.log("No valid FCM tokens provided for multiple devices.");
+      return { success: false, error: "No valid tokens provided" };
+    }
+
+    // Create messages for each valid token
+    const messages = validTokens.map(token => ({
       token: token,
       notification: {
         title: notification?.title,
@@ -144,17 +151,26 @@ const sendToMultipleDevices = async (tokens, notification, data = {}) => {
     }));
 
     const messagingInstance = getMessaging();
-    console.log("messagingInstance:",messagingInstance);
-    console.log("messages:",messages);
-    // Use sendEach instead of sendMulticast for firebase-admin v13+
-    const response = await messagingInstance.sendEach(messages);
+    console.log(`Sending ${messages.length} messages...`);
+    
+    // Instead of sendEach, which throws on fatal errors, we can use sendEach or sendAll with a try-catch for individual processing if needed, 
+    // but sendEach is designed to return an object with responses array even if some fail.
+    const response = await messagingInstance.sendEach(messages).catch(err => {
+      console.error("Critical error in sendEach:", err);
+      return {
+        successCount: 0,
+        failureCount: messages.length,
+        responses: messages.map(() => ({ success: false, error: err }))
+      };
+    });
+    
     console.log(`Successfully sent ${response.successCount} messages`);
     
     if (response.failureCount > 0) {
       console.log(`Failed to send ${response.failureCount} messages`);
       response.responses.forEach((resp, idx) => {
         if (!resp.success) {
-          console.error(`Error sending to token ${tokens[idx]}:`, resp.error);
+          console.error(`Error sending to token ${validTokens[idx]}:`, resp.error?.message || resp.error);
         }
       });
     }

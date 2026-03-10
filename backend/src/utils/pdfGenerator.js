@@ -4,7 +4,7 @@ const { cloudinary } = require('../config/cloudinaryConfig');
 const generateAndUploadInvoice = async (orderDetails) => {
     return new Promise((resolve, reject) => {
         try {
-            const doc = new PDFDocument({ margin: 50 });
+            const doc = new PDFDocument({ margin: 50, size: 'A4' });
 
             // Create a write stream to Cloudinary
             const uploadStream = cloudinary.uploader.upload_stream(
@@ -22,78 +22,176 @@ const generateAndUploadInvoice = async (orderDetails) => {
             // Pipe the PDF directly to the Cloudinary stream
             doc.pipe(uploadStream);
 
-            // Basic Invoice Styling with pdfkit
+            // --- HEADER SECTION ---
             doc.fillColor('#333333')
-                .fontSize(25)
-                .text('Turant Logistics', { align: 'center' })
-                .fontSize(15)
-                .text('Invoice', { align: 'center' })
-                .moveDown();
-
-            doc.moveTo(50, 150).lineTo(550, 150).stroke();
-
-            // Order Details
-            doc.fontSize(12)
-                .text(`Order ID:`, 50, 170)
-                .font('Helvetica-Bold').text(`${orderDetails.orderId}`, 150, 170)
-                .font('Helvetica');
-
-            doc.text(`Date:`, 50, 190)
                 .font('Helvetica-Bold')
-                .text(`${new Date(orderDetails.createdAt || Date.now()).toLocaleDateString()}`, 150, 190)
-                .font('Helvetica');
+                .fontSize(20)
+                .text('TURANT LOGISTICS', { align: 'center' });
+            
+            doc.font('Helvetica-Bold')
+                .fontSize(14)
+                .text('BOOKING RECEIPT', { align: 'center' })
+                .moveDown(1);
 
-            // Addresses
-            doc.moveDown(2);
-            const startY = doc.y;
+            const orderDate = new Date(orderDetails.createdAt || Date.now());
+            const dateStr = orderDate.toLocaleDateString();
+            const timeStr = orderDate.toLocaleTimeString();
 
-            doc.font('Helvetica-Bold').text('From (Sender):', 50, startY);
-            doc.font('Helvetica')
-                .text(`${orderDetails.senderDetails?.name || 'N/A'}`)
-                .text(`${orderDetails.senderDetails?.mobile || 'N/A'}`)
-                .text(`${orderDetails.senderDetails?.location?.address || 'N/A'}`, { width: 200 });
+            doc.fontSize(10).font('Helvetica-Bold').fillColor('#555555').text(`Booking Reference: `, 50, doc.y, { continued: true })
+               .font('Helvetica-Bold').fillColor('#333333').text(`${orderDetails.orderId}`, { align: 'left' });
+            
+            doc.font('Helvetica-Bold').fillColor('#555555').text(`Date: `, 50, doc.y, { continued: true })
+               .font('Helvetica').fillColor('#333333').text(`${dateStr} | `, { continued: true })
+               .font('Helvetica-Bold').fillColor('#555555').text(`Time: `, { continued: true })
+               .font('Helvetica').fillColor('#333333').text(`${timeStr}`, { align: 'left' });
+            
+            doc.moveDown(1.5);
 
-            doc.font('Helvetica-Bold').text('To (Receiver):', 300, startY);
-            doc.font('Helvetica')
-                .text(`${orderDetails.receiverDetails?.name || 'N/A'}`, 300, doc.y)
-                .text(`${orderDetails.receiverDetails?.mobile || 'N/A'}`, 300, doc.y)
-                .text(`${orderDetails.receiverDetails?.location?.address || 'N/A'}`, 300, doc.y, { width: 250 });
+            // Helper to draw section header
+            const drawSectionHeader = (title, startY) => {
+                let yPos = startY;
+                if (yPos > doc.page.height - 150) {
+                    doc.addPage();
+                    yPos = 50;
+                }
+                doc.fontSize(10).font('Helvetica-Bold').fillColor('#0052CC').text(title, 50, yPos);
+                let currentY = doc.y + 4;
+                doc.moveTo(50, currentY).lineTo(545, currentY).strokeColor('#e5e7eb').lineWidth(1).stroke();
+                return currentY + 10;
+            };
 
-            doc.moveDown(2);
-            doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
-            doc.moveDown();
+            // Helper to draw left/right label value grid
+            const drawLabelValueGrid = (items, startY) => {
+                let currentY = startY;
 
-            // Ride specifics
-            doc.font('Helvetica-Bold').text('Vehicle:', 50, doc.y);
-            doc.font('Helvetica').text(`${orderDetails.vehicleDetails?.vehicleName || 'N/A'} (${orderDetails.vehicleDetails?.vehicleType || 'N/A'})`, 150, doc.y - 12);
+                for (let i = 0; i < items.length; i += 2) {
+                    const item1 = items[i];
+                    const item2 = items[i + 1];
 
-            doc.font('Helvetica-Bold').text('Item Weight:', 50, doc.y + 15);
-            doc.font('Helvetica').text(`${orderDetails.packageDetails?.weight || 'N/A'}`, 150, doc.y - 12);
+                    if (currentY > doc.page.height - 100) {
+                        doc.addPage();
+                        currentY = 50;
+                    }
 
-            doc.font('Helvetica-Bold').text('Distance:', 50, doc.y + 15);
-            doc.font('Helvetica').text(`${orderDetails.distance || 0} km`, 150, doc.y - 12);
+                    let nextY1 = currentY;
+                    let nextY2 = currentY;
 
-            doc.font('Helvetica-Bold').text('Payment Method:', 50, doc.y + 15);
-            doc.font('Helvetica').text(`${orderDetails.payment?.method || 'CASH'}`, 150, doc.y - 12);
+                    // Left Column
+                    if (item1) {
+                        doc.fontSize(10).font('Helvetica-Bold').fillColor('#555555').text(item1.label, 50, currentY, { width: 100 });
+                        doc.font('Helvetica').fillColor('#333333').text(item1.value || 'N/A', 160, currentY, { width: 130 });
+                        nextY1 = doc.y;
+                    }
 
-            doc.font('Helvetica-Bold').text('Payment Status:', 50, doc.y + 15);
-            doc.font('Helvetica').text(`${orderDetails.payment?.status || 'COMPLETED'}`, 150, doc.y - 12);
+                    // Right Column
+                    if (item2) {
+                        doc.fontSize(10).font('Helvetica-Bold').fillColor('#555555').text(item2.label, 310, currentY, { width: 100 });
+                        doc.font('Helvetica').fillColor('#333333').text(item2.value || 'N/A', 415, currentY, { width: 130 });
+                        nextY2 = doc.y;
+                    }
 
-            doc.moveDown(2);
-            doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
-            doc.moveDown();
+                    currentY = Math.max(nextY1, nextY2) + 8;
+                }
+                return currentY;
+            };
 
-            // Total
-            doc.fontSize(16).font('Helvetica-Bold').text('Total Amount:', 50, doc.y);
-            doc.fillColor('#22c55e').text(`INR ${orderDetails.pricing?.totalAmount || 0}`, 350, doc.y - 16, { align: 'right' });
+            // --- BOOKING DETAILS ---
+            let currentY = drawSectionHeader('BOOKING DETAILS', doc.y);
+            
+            const bookingItems = [
+                { label: 'City:', value: orderDetails.city || 'N/A' },
+                { label: 'Vehicle:', value: `${orderDetails.vehicleDetails?.vehicleName || 'N/A'} (${orderDetails.vehicleDetails?.vehicleType || 'N/A'})` },
+                { label: 'Weight:', value: `${orderDetails.packageDetails?.weight || 'N/A'} ${orderDetails.packageDetails?.weightUnit || 'kg'}` },
+                { label: 'Distance:', value: `${orderDetails.distance || 0} km` }
+            ];
 
+            // If dimensions exist
+            if (orderDetails.packageDetails?.length && orderDetails.packageDetails?.width && orderDetails.packageDetails?.height) {
+                bookingItems.push({ label: 'Dimensions:', value: `${orderDetails.packageDetails.length} x ${orderDetails.packageDetails.width} x ${orderDetails.packageDetails.height} ${orderDetails.packageDetails.dimensionUnit || 'cm'}` });
+            }
+
+            currentY = drawLabelValueGrid(bookingItems, currentY);
+            doc.y = currentY;
+            doc.moveDown(1);
+            
+            // --- PICKUP INFORMATION ---
+            currentY = drawSectionHeader('PICKUP INFORMATION', doc.y);
+            
+            const pickupItems = [
+                { label: 'Pickup Address:', value: orderDetails.senderDetails?.location?.address || 'N/A' },
+                { label: "Sender's Name:", value: orderDetails.senderDetails?.name || 'N/A' },
+                { label: "Sender's Phone:", value: orderDetails.senderDetails?.mobile || 'N/A' },
+                { label: 'Instructions:', value: orderDetails.senderDetails?.instructions || 'None' }
+            ];
+
+            currentY = drawLabelValueGrid(pickupItems, currentY);
+            doc.y = currentY;
+            doc.moveDown(1);
+
+            // --- DELIVERY INFORMATION ---
+            currentY = drawSectionHeader('DELIVERY INFORMATION', doc.y);
+            
+            const deliveryItems = [
+                { label: 'Delivery Address:', value: orderDetails.receiverDetails?.location?.address || 'N/A' },
+                { label: "Recipient's Name:", value: orderDetails.receiverDetails?.name || 'N/A' },
+                { label: "Recipient's Phone:", value: orderDetails.receiverDetails?.mobile || 'N/A' },
+                { label: 'Instructions:', value: orderDetails.receiverDetails?.instructions || 'None' }
+            ];
+
+            currentY = drawLabelValueGrid(deliveryItems, currentY);
+            doc.y = currentY;
+            doc.moveDown(1);
+
+            // --- PAYMENT DETAILS ---
+            currentY = drawSectionHeader('PAYMENT DETAILS', doc.y);
+            
+            let paymentMethodText = 'N/A';
+            const method = orderDetails.payment?.method || 'cash';
+            if (method.toLowerCase() === 'online') paymentMethodText = 'Online Payment';
+            else if (method.toLowerCase() === 'cash' || method.toLowerCase() === 'payatpickup') paymentMethodText = 'Pay at Pickup (Cash or Online)';
+            else if (method.toLowerCase() === 'payatdelivery') paymentMethodText = 'Pay at Delivery (Cash or Online)';
+            else paymentMethodText = orderDetails.payment?.method;
+
+            const totalAmount = orderDetails.pricing?.totalAmount !== undefined ? orderDetails.pricing.totalAmount : (orderDetails.pricing?.baseFare || 0);
+
+            const paymentItems = [
+                { label: 'Payment Method:', value: paymentMethodText },
+                { label: 'Payment Status:', value: orderDetails.payment?.status || 'COMPLETED' },
+                { label: 'Total Amount:', value: `Rs. ${Number(totalAmount).toFixed(2)}` }
+            ];
+            
+            if (orderDetails.pricing?.waitingCharge && orderDetails.pricing.waitingCharge > 0) {
+                paymentItems.push({ label: 'Wait Charges:', value: `Rs. ${Number(orderDetails.pricing.waitingCharge).toFixed(2)}` });
+            }
+
+            currentY = drawLabelValueGrid(paymentItems, currentY);
+            doc.y = currentY;
+
+            // --- SPECIAL INSTRUCTIONS ---
+            if (orderDetails.specialInstructions) {
+                doc.moveDown(1);
+                currentY = drawSectionHeader('SPECIAL INSTRUCTIONS', doc.y);
+                doc.fontSize(10).font('Helvetica').fillColor('#333333').text(orderDetails.specialInstructions, 50, currentY, { width: 495 });
+                doc.y = doc.y + 10;
+            }
+
+            // --- FOOTER ---
             doc.moveDown(3);
+            if (doc.y > doc.page.height - 100) {
+                doc.addPage();
+                doc.y = 50;
+            }
+            
             doc.fillColor('#666666')
                 .fontSize(10)
-                .text('Thank you for trusting Turant Logistics for your delivery needs!', { align: 'center' })
-                .text('For support, please visit Address:5th floor, Maurya lok complex, Block A, Fraser Road Area, Patna, Bihar 800001 ', { align: 'center' })
-                .text('Email: contact@turantlogistics.com', { align: 'center' })
-                .text('Phone: +91 9263283152.', { align: 'center' });
+                .font('Helvetica')
+                .text('Thank you for choosing Turant Logistics!', { align: 'center' })
+                .moveDown(0.5)
+                .text('For support, contact us at contact@turantlogistics.com', { align: 'center' })
+                .moveDown(0.2)
+                .text('Address: 5th floor, Maurya lok complex, Block A, Fraser Road Area, Patna, Bihar 800001', { align: 'center' })
+                .text('Phone: +91 9263283152', { align: 'center' });
+
             // Finalize the PDF and end the stream
             doc.end();
 
