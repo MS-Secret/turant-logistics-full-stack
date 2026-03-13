@@ -368,13 +368,13 @@ const GetNearbyDrivers = async (payload) => {
           return false;
         }
 
-        // Strictly match body type if the consumer requested one
-        if (vehicleBodyType && kycVeh.vehicleBodyType && kycVeh.vehicleBodyType !== vehicleBodyType) {
+        // Strictly match body type if the consumer requested one, but case-insensitively
+        if (vehicleBodyType && kycVeh.vehicleBodyType && kycVeh.vehicleBodyType.toLowerCase() !== vehicleBodyType.toLowerCase()) {
           return false;
         }
 
-        // Strictly match fuel type if the consumer requested one
-        if (vehicleFuelType && kycVeh.vehicleFuelType && kycVeh.vehicleFuelType !== vehicleFuelType) {
+        // Strictly match fuel type if the consumer requested one, but case-insensitively
+        if (vehicleFuelType && kycVeh.vehicleFuelType && kycVeh.vehicleFuelType.toLowerCase() !== vehicleFuelType.toLowerCase()) {
           return false;
         }
 

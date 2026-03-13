@@ -116,8 +116,8 @@ const initializeSocket = (server) => {
           const reqVehNorm = request.vehicleType ? (vehicleTypeNormalizer[request.vehicleType] || request.vehicleType) : null;
           const kycVehNorm = kycVeh.vehicleType ? (vehicleTypeNormalizer[kycVeh.vehicleType] || kycVeh.vehicleType) : null;
           if (reqVehNorm && kycVehNorm && reqVehNorm !== kycVehNorm) continue;
-          if (request.vehicleBodyType && kycVeh.vehicleBodyType && kycVeh.vehicleBodyType !== request.vehicleBodyType) continue;
-          if (request.vehicleFuelType && kycVeh.vehicleFuelType && kycVeh.vehicleFuelType !== request.vehicleFuelType) continue;
+          if (request.vehicleBodyType && kycVeh.vehicleBodyType && kycVeh.vehicleBodyType.toLowerCase() !== request.vehicleBodyType.toLowerCase()) continue;
+          if (request.vehicleFuelType && kycVeh.vehicleFuelType && kycVeh.vehicleFuelType.toLowerCase() !== request.vehicleFuelType.toLowerCase()) continue;
 
           // Check distance
           const distance = calculateDistance(

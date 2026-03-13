@@ -666,6 +666,34 @@ const updateUserProfile = async (updateData, profileImageFile) => {
   }
 };
 
+// Logout user (unregister device)
+const logout = async (userId, deviceId) => {
+  try {
+    const user = await User.findOne({ userId });
+    if (user && deviceId) {
+      // Remove device from deviceInfo list
+      if (user.metadata && user.metadata.deviceInfo) {
+        user.metadata.deviceInfo = user.metadata.deviceInfo.filter(
+          (d) => d.deviceId !== deviceId
+        );
+        await user.save();
+        console.log(`Device ${deviceId} unregistered for user ${userId}`);
+      }
+    }
+
+    // Clear session for this device
+    await Session.deleteMany({ userId, deviceId });
+
+    return {
+      success: true,
+      message: "Successfully logged out and device unregistered",
+    };
+  } catch (error) {
+    console.error("Logout error:", error);
+    throw error;
+  }
+};
+
 const createDefaultAdmin = async () => {
   try {
     const { ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_USERNAME } = process.env;
@@ -710,4 +738,5 @@ module.exports = {
   getUserProfile,
   updateUserProfile,
   createDefaultAdmin,
+  logout
 };

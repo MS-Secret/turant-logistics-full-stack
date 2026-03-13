@@ -75,6 +75,7 @@ router.put(
   verifyToken,
   authController.updateProfile
 );
+router.post("/logout", verifyToken, authController.logout);
 
 // ==================== ADMIN ROUTES ====================
 

@@ -3,7 +3,7 @@ const { Cashfree, CFEnvironment } = require('cashfree-pg');
 // Initialize Cashfree SDK
 const cashfreeConfig = {
   environment: process.env.CASHFREE_ENVIRONMENT || 'SANDBOX', 
-  clientId: process.env.CASHFREE_APP_ID,
+  clientId: process.env.CASHFREE_APP_ID || process.env.CASHFREE_CLIENT_ID,
   clientSecret: process.env.CASHFREE_SECRET_ID,
 };
 

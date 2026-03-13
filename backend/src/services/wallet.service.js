@@ -83,15 +83,14 @@ const calculateRiderEarning = (order, pricing) => {
     const isNight = isCheckNightTime(new Date(orderDateTime));
     const nightCharge = isNight ? 15 : 0;
 
-    // 8. Max Calculation
-    // Formula: Max(Base Fare, Sum of components)
-    const calculatedEarning = Math.max(
-        baseFare,
+    // 8. Total Calculation
+    // Sum of all components (Distance Tiering handles the minimum ₹28)
+    const calculatedEarning = 
         distanceCharge +
         weightCharge +
         waitingCharge +
-        nightCharge + fragileCharge
-    );
+        nightCharge + 
+        fragileCharge;
 
     return Math.round(calculatedEarning);
 };
@@ -239,7 +238,7 @@ const initiateRecharge = async (driverId, amount, driver) => {
 
         let customerDetails = {
             customerId: driver.userId,
-            customerName: user?.fullName || "Driver",
+            customerName: user?.username || user?.fullName || "Driver",
             customerEmail: user?.email || "driver@turant.com",
             customerPhone: user?.mobileNumber || "9999999999"
         };
@@ -260,8 +259,8 @@ const initiateRecharge = async (driverId, amount, driver) => {
             success: true,
             message: "Recharge session initiated",
             data: {
-                sessionId: paymentResponse.data.payment_session_id,
-                orderId: paymentResponse.data.order_id
+                sessionId: paymentResponse.data.sessionId,
+                orderId: paymentResponse.data.orderId
             }
         };
     } catch (error) {
@@ -284,11 +283,12 @@ const verifyRecharge = async (driverId, orderId) => {
 
         const verificationResponse = await cashfreeService.verifyPayment(orderId);
 
-        if (!verificationResponse.success || verificationResponse.data.orderStatus !== "PAID") {
-            return { success: false, message: "Payment verification failed or pending" };
+        if (!verificationResponse.success || !verificationResponse.data || verificationResponse.data.orderStatus !== "PAID") {
+            return { success: false, message: `Payment verification failed. Status: ${verificationResponse.data?.orderStatus || "UNKNOWN"}` };
         }
 
-        const amount = verificationResponse.data.paidAmount || verificationResponse.data.orderAmount;
+        const amount = Number(verificationResponse.data.paidAmount) || Number(verificationResponse.data.orderAmount) || 0;
+        if (amount <= 0) return { success: false, message: "Invalid payment amount detected" };
 
         // ATOMIC UPDATE to prevent race conditions when multiple onVerify callbacks are fired instantly by SDK
         const updatedWallet = await Wallet.findOneAndUpdate(
@@ -562,6 +562,7 @@ module.exports = {
     processOrderPayment,
     getHistory,
     initiateRecharge,
+    verifyRecharge,
     processWithdrawal,
     getPendingWithdrawalsAdmin,
     approveWithdrawalAdmin,

@@ -50,9 +50,17 @@ const createOrder = async (orderData) => {
     const response = await cashfree.PGCreateOrder(orderRequest);
 
     console.log('Cashfree order created successfully:', response.data);
+    
+    // SDK v5 returns data directly in response.data or similar
+    const result = response.data;
+    
     return {
       success: true,
-      data: response.data,
+      data: {
+        orderId: result.order_id,
+        sessionId: result.payment_session_id,
+        orderStatus: result.order_status,
+      },
     };
   } catch (error) {
     console.error('Error creating Cashfree order:', error.response?.data || error);
@@ -121,7 +129,7 @@ const verifyPayment = async (orderId) => {
     }
 
     const order = orderResponse.data;
-    console.log('Order details for verification:', order);
+    if (!order) return { success: false, error: "Order not found in Cashfree" };
 
     return {
       success: true,

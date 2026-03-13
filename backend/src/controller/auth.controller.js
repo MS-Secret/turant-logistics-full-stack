@@ -276,6 +276,29 @@ const deleteUser = async (req, res) => {
 
 
 
+// Logout user (unregister device)
+const logout = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const deviceId = req.headers["device-id"];
+
+    if (!deviceId) {
+      return res.status(httpStatusCode.BAD_REQUEST).json({
+        success: false,
+        message: "Device-Id header is required for logout",
+      });
+    }
+
+    const result = await authService.logout(userId, deviceId);
+    res.json(result);
+  } catch (error) {
+    res.status(httpStatusCode.BAD_REQUEST).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -288,4 +311,5 @@ module.exports = {
   updateUser,
   updateUserStatus,
   deleteUser,
+  logout,
 };

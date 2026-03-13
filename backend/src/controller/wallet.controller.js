@@ -67,7 +67,7 @@ const VerifyRecharge = async (req, res) => {
         const { orderId } = req.body; // Cashfree order ID
         if (!orderId) return res.status(400).json({ success: false, message: "orderId required" });
         const driver = await Driver.findOne({ userId: req.user.userId });
-        if (!driver) return res.status(404).json({ success: false, message: "Driver not found" });
+        if (!driver) return res.status(404).json({ success: false, message: "Driver profile not found" });
 
         const result = await WalletService.verifyRecharge(driver._id, orderId);
         return res.status(result.success ? 200 : 400).json(result);

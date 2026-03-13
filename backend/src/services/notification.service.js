@@ -18,41 +18,41 @@ const RegisterFCMToken = async (payload) => {
       };
     }
 
-    // Check if device ID already exists
-    const existingDeviceIndex = User.metadata.deviceInfo?.findIndex(
-      (dev) => dev.deviceId === device.id
+    // Initialize array if it doesn't exist
+    if (!User.metadata.deviceInfo) {
+      User.metadata.deviceInfo = [];
+    }
+
+    // Check if device ID or Token already exists
+    const existingDeviceIndex = User.metadata.deviceInfo.findIndex(
+      (dev) => dev.deviceId === device.id || dev.fcmToken === token
     );
 
     if (existingDeviceIndex !== -1) {
       // Device exists - Update token and lastActiveAt
       User.metadata.deviceInfo[existingDeviceIndex].fcmToken = token;
       User.metadata.deviceInfo[existingDeviceIndex].lastActiveAt = new Date();
-      User.metadata.deviceInfo[existingDeviceIndex].deviceName = device.name; // Update name in case it changed
-
-      await User.save();
-
-      return {
-        success: true,
-        message: "Device token updated successfully",
+      User.metadata.deviceInfo[existingDeviceIndex].deviceId = device.id; // ensure ID is synced if match was by token
+      User.metadata.deviceInfo[existingDeviceIndex].deviceName = device.name;
+    } else {
+      // New device - Add to list
+      console.log("Registering new device:", userId, device);
+      const deviceInfo = {
+        deviceId: device?.id,
+        platform: device?.type,
+        fcmToken: token,
+        deviceName: device?.name,
+        lastActiveAt: new Date(),
       };
+      User.metadata.deviceInfo.push(deviceInfo);
     }
 
-    // New device - Add to list
-    console.log("Registering new device:", userId, device);
-    const deviceInfo = {
-      deviceId: device?.id,
-      platform: device?.type,
-      fcmToken: token,
-      deviceName: device?.name,
-      lastActiveAt: new Date(),
-    };
-
-    // Initialize array if it doesn't exist
-    if (!User.metadata.deviceInfo) {
-      User.metadata.deviceInfo = [];
+    // Sort by last active (newest first) and keep only the top 3 to prevent accumulation
+    User.metadata.deviceInfo.sort((a, b) => new Date(b.lastActiveAt) - new Date(a.lastActiveAt));
+    if (User.metadata.deviceInfo.length > 3) {
+      User.metadata.deviceInfo = User.metadata.deviceInfo.slice(0, 3);
     }
 
-    User.metadata.deviceInfo.push(deviceInfo);
     await User.save();
 
     return {
