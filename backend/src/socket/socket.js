@@ -110,14 +110,25 @@ const initializeSocket = (server) => {
           if (request.notifiedDrivers && request.notifiedDrivers.has(driver.userId)) continue;
 
           // Check vehicle constraints (with normalizer for consumer vs KYC naming)
-          const vehicleTypeNormalizer = { '2 Wheeler': '2w', '2 wheeler': '2w', '2w': '2w', '3 Wheeler': '3w', '3 wheeler': '3w', '3w': '3w', 'Truck': 'truck', 'truck': 'truck' };
+          const { normalizeVehicleAttributes } = require("../utils/vehicleNormalizer");
           const kycVeh = driver.kycDetailsId?.vehicle;
           if (!kycVeh) continue;
-          const reqVehNorm = request.vehicleType ? (vehicleTypeNormalizer[request.vehicleType] || request.vehicleType) : null;
-          const kycVehNorm = kycVeh.vehicleType ? (vehicleTypeNormalizer[kycVeh.vehicleType] || kycVeh.vehicleType) : null;
-          if (reqVehNorm && kycVehNorm && reqVehNorm !== kycVehNorm) continue;
-          if (request.vehicleBodyType && kycVeh.vehicleBodyType && kycVeh.vehicleBodyType.toLowerCase() !== request.vehicleBodyType.toLowerCase()) continue;
-          if (request.vehicleFuelType && kycVeh.vehicleFuelType && kycVeh.vehicleFuelType.toLowerCase() !== request.vehicleFuelType.toLowerCase()) continue;
+
+          const normalizedReq = normalizeVehicleAttributes({
+            vehicleType: request.vehicleType,
+            vehicleBodyType: request.vehicleBodyType,
+            vehicleFuelType: request.vehicleFuelType
+          });
+
+          const normalizedKyc = normalizeVehicleAttributes({
+            vehicleType: kycVeh.vehicleType,
+            vehicleBodyType: kycVeh.vehicleBodyType,
+            vehicleFuelType: kycVeh.vehicleFuelType
+          });
+
+          if (normalizedReq.vehicleType && normalizedKyc.vehicleType !== normalizedReq.vehicleType) continue;
+          if (normalizedReq.vehicleBodyType && normalizedKyc.vehicleBodyType !== normalizedReq.vehicleBodyType) continue;
+          if (normalizedReq.vehicleFuelType && normalizedKyc.vehicleFuelType !== normalizedReq.vehicleFuelType) continue;
 
           // Check distance
           const distance = calculateDistance(
@@ -285,6 +296,16 @@ const initializeSocket = (server) => {
             console.error("No orderId found in ride request");
           }
 
+          // Normalize payment data
+          let paymentData = data.payment || result.data.rideRequestData.payment || { 
+            method: 'CASH', 
+            cashCollectionAt: data.cashCollectionAt || 'DROP' 
+          };
+          
+          if (paymentData && paymentData.method && paymentData.method.toLowerCase().includes('cash')) {
+            paymentData.method = 'CASH';
+          }
+
           activeRideRequests.set(rideRequestId, {
             ...result.data.rideRequestData,
             consumerData: result.data.consumerData,
@@ -292,6 +313,7 @@ const initializeSocket = (server) => {
             consumerUserId: socket.userId,
             status: "PENDING",
             orderId: orderId,
+            payment: paymentData,
             vehicleType: data.rideType,
             vehicleBodyType: data.vehicleBodyType,
             vehicleFuelType: data.vehicleFuelType,
@@ -379,6 +401,17 @@ const initializeSocket = (server) => {
             socket.emit("ride_accept_error", {
               message: "Ride request not found or already processed",
             });
+            return;
+          }
+
+          // Check if driver is suspended
+          const Driver = require("../models/driver.model");
+          const driver = await Driver.findOne({ userId: socket.userId });
+          if (!driver || driver.approvalStatus === 'SUSPENDED' || !driver.isActive) {
+            socket.emit("ride_accept_error", {
+              message: "Your account is suspended. You cannot accept rides.",
+            });
+            socket.disconnect(); // Disconnect them for safety
             return;
           }
 
@@ -629,10 +662,12 @@ const initializeSocket = (server) => {
 
             // Recalculate if we have vehicle info (even if specific ID is missing, service handles fallback)
             if (pricingPayload.vehicleType) {
+              console.log("[Socket] Attempting fare recalculation with payload:", pricingPayload);
               const pricingResult = await PricingService.CalculateFare(pricingPayload);
               if (pricingResult.success) {
                 finalAmount = pricingResult.data.finalFare;
                 fareDetails = pricingResult.data.breakdown;
+                console.log("[Socket] Fare recalculated successfully. Final Amount:", finalAmount, "Waiting Charge:", fareDetails?.waitingCharge);
 
                 // Sync all pricing components to the Order document
                 if (!order.pricing) order.pricing = {};
@@ -647,7 +682,11 @@ const initializeSocket = (server) => {
                 order.waitingInfo.duration = waitTime;
                 
                 await order.save();
+              } else {
+                console.warn("[Socket] Fare recalculation failed:", pricingResult.message, ". Using client-provided amount or estimate.");
               }
+            } else {
+              console.warn("[Socket] Cannot recalculate fare: vehicleType is missing in order details.");
             }
           }
 

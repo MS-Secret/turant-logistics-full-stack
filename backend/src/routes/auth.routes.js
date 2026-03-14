@@ -22,6 +22,8 @@ const {
   handleGetNearbyDrivers,
   handleSendRideRequest,
   handleUpdateCurrentLocation,
+  handleBlockDriver,
+  handleUnblockDriver
 } = require("../controller/driver.controller");
 const {
   handleGetConsumerList,
@@ -133,6 +135,8 @@ router.post("/driver/status", verifyToken, handleUpdateDriverWorkingStatus);
 router.post("/driver/ride-request", verifyToken, handleSendRideRequest);
 router.get("/driver/:driverId", verifyToken, handleGetDriverDetails);
 router.post("/driver/kyc/:userId", verifyToken, handleUpdateDriverKycStatus);
+router.post("/driver/block/:userId", verifyToken, handleBlockDriver);
+router.post("/driver/unblock/:userId", verifyToken, handleUnblockDriver);
 
 // ==================== Consumer HANDLING ====================
 router.get("/consumer/all", verifyToken, handleGetConsumerList);

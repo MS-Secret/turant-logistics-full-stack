@@ -339,6 +339,56 @@ const CreateDriverDetails = async (req, res) => {
   }
 };
 
+const handleBlockDriver = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(httpStatusCode.BAD_REQUEST).json({
+        success: false,
+        message: "UserId is required"
+      });
+    }
+    const result = await driverService.BlockDriver({ userId });
+    if (result.success) {
+      return res.status(httpStatusCode.OK).json(result);
+    } else {
+      return res.status(httpStatusCode.BAD_REQUEST).json(result);
+    }
+  } catch (error) {
+    console.error("Error in handleBlockDriver:", error);
+    return res.status(httpStatusCode.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
+const handleUnblockDriver = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(httpStatusCode.BAD_REQUEST).json({
+        success: false,
+        message: "UserId is required"
+      });
+    }
+    const result = await driverService.UnblockDriver({ userId });
+    if (result.success) {
+      return res.status(httpStatusCode.OK).json(result);
+    } else {
+      return res.status(httpStatusCode.BAD_REQUEST).json(result);
+    }
+  } catch (error) {
+    console.error("Error in handleUnblockDriver:", error);
+    return res.status(httpStatusCode.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   handleGetDriverList,
   handleGetDriverDetails,
@@ -350,5 +400,7 @@ module.exports = {
   handleUpdateCurrentLocation,
   handleCompleteRideByDriver,
   handleResetDailyEarnings,
-  CreateDriverDetails
+  CreateDriverDetails,
+  handleBlockDriver,
+  handleUnblockDriver
 };

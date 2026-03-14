@@ -169,10 +169,15 @@ const login = async (identifier, password, deviceInfo = {}, expectedRole = null)
       }
     }
 
-    // Check if user is active
-    // if (user.status !== "ACTIVE") {
-    //   throw new Error("Account is not active. Please verify your account");
-    // }
+    // Check if user is active/suspended
+    if (user.status === "SUSPENDED") {
+      throw new Error("Your account has been suspended. Please contact support.");
+    }
+
+    if (user.status !== "ACTIVE" && user.status !== "PENDING") {
+       // Optional: more generic active check if needed. 
+       // For now, only explicitly block SUSPENDED.
+    }
 
     // Generate tokens
     const tokenPayload = {

@@ -343,38 +343,36 @@ const GetNearbyDrivers = async (payload) => {
     // Filter drivers based on requested vehicle attributes
     let activeDrivers = activeDriversQuery;
 
-    // Normalizer: maps consumer-side vehicle type names to KYC-stored values
-    const vehicleTypeNormalizer = {
-      '2 Wheeler': '2w',
-      '2 wheeler': '2w',
-      '2w': '2w',
-      '3 Wheeler': '3w',
-      '3 wheeler': '3w',
-      '3w': '3w',
-      'Truck': 'truck',
-      'truck': 'truck',
-    };
+    const { normalizeVehicleAttributes } = require("../utils/vehicleNormalizer");
+    const normalizedReq = normalizeVehicleAttributes({
+      vehicleType,
+      vehicleBodyType,
+      vehicleFuelType
+    });
 
-    const normalizedVehicleType = vehicleType ? (vehicleTypeNormalizer[vehicleType] || vehicleType) : null;
-
-    if (normalizedVehicleType) {
+    if (normalizedReq.vehicleType) {
       activeDrivers = activeDriversQuery.filter((driver) => {
         const kycVeh = driver.kycDetailsId?.vehicle;
         if (!kycVeh) return false;
 
-        // Check Base Vehicle Type using normalized value
-        const kycNormalized = kycVeh.vehicleType ? (vehicleTypeNormalizer[kycVeh.vehicleType] || kycVeh.vehicleType) : null;
-        if (kycNormalized !== normalizedVehicleType) {
+        const normalizedKyc = normalizeVehicleAttributes({
+          vehicleType: kycVeh.vehicleType,
+          vehicleBodyType: kycVeh.vehicleBodyType,
+          vehicleFuelType: kycVeh.vehicleFuelType
+        });
+
+        // Match normalized vehicle type
+        if (normalizedKyc.vehicleType !== normalizedReq.vehicleType) {
           return false;
         }
 
-        // Strictly match body type if the consumer requested one, but case-insensitively
-        if (vehicleBodyType && kycVeh.vehicleBodyType && kycVeh.vehicleBodyType.toLowerCase() !== vehicleBodyType.toLowerCase()) {
+        // Match body type if requested
+        if (normalizedReq.vehicleBodyType && normalizedKyc.vehicleBodyType !== normalizedReq.vehicleBodyType) {
           return false;
         }
 
-        // Strictly match fuel type if the consumer requested one, but case-insensitively
-        if (vehicleFuelType && kycVeh.vehicleFuelType && kycVeh.vehicleFuelType.toLowerCase() !== vehicleFuelType.toLowerCase()) {
+        // Match fuel type if requested
+        if (normalizedReq.vehicleFuelType && normalizedKyc.vehicleFuelType !== normalizedReq.vehicleFuelType) {
           return false;
         }
 
@@ -517,6 +515,7 @@ const SendRideRequestToDrivers = async (payload) => {
       dropoffLocation,
       rideType,
       estimatedFare,
+      payment: payload.payment || { method: 'CASH', cashCollectionAt: payload.cashCollectionAt || 'DROP' },
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 2 * 60 * 1000).toISOString(), // 2 minutes expiry
       status: "PENDING",
@@ -898,9 +897,77 @@ const AcceptRideRequest = async (payload) => {
         order: updateOrderResult.data // Assuming this contains updated order
       }
     };
-
   } catch (error) {
     console.error("Error in AcceptRideRequest:", error);
+    return { success: false, message: error.message };
+  }
+};
+
+const BlockDriver = async ({ userId }) => {
+  try {
+    if (!userId) {
+      return { success: false, message: "UserId is required" };
+    }
+
+    // 1. Update User model status
+    await User.findOneAndUpdate({ userId }, { status: 'SUSPENDED' });
+
+    // 2. Update Driver model status
+    const driver = await Driver.findOneAndUpdate(
+      { userId },
+      { 
+        approvalStatus: 'SUSPENDED',
+        isActive: false,
+        workingStatus: 'OFFLINE' // Force offline
+      },
+      { new: true }
+    );
+
+    if (!driver) {
+      return { success: false, message: "Driver not found" };
+    }
+
+    return {
+      success: true,
+      message: "Driver blocked successfully",
+      data: driver
+    };
+  } catch (error) {
+    console.error("Error blocking driver:", error);
+    return { success: false, message: error.message };
+  }
+};
+
+const UnblockDriver = async ({ userId }) => {
+  try {
+    if (!userId) {
+      return { success: false, message: "UserId is required" };
+    }
+
+    // 1. Update User model status
+    await User.findOneAndUpdate({ userId }, { status: 'ACTIVE' });
+
+    // 2. Update Driver model status
+    const driver = await Driver.findOneAndUpdate(
+      { userId },
+      { 
+        approvalStatus: 'APPROVED',
+        isActive: true 
+      },
+      { new: true }
+    );
+
+    if (!driver) {
+      return { success: false, message: "Driver not found" };
+    }
+
+    return {
+      success: true,
+      message: "Driver unblocked successfully",
+      data: driver
+    };
+  } catch (error) {
+    console.error("Error unblocking driver:", error);
     return { success: false, message: error.message };
   }
 };
@@ -918,5 +985,7 @@ module.exports = {
   ResetDailyEarnings,
   AddDriverDetails,
   SendRideRequestNotification,
-  AcceptRideRequest
+  AcceptRideRequest,
+  BlockDriver,
+  UnblockDriver
 };

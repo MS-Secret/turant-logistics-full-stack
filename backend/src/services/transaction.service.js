@@ -48,10 +48,12 @@ const CreateTransaction = async (payload) => {
         : vehicleDetails;
     payment = typeof payment === "string" ? JSON.parse(payment) : payment;
 
-    // Clean userId of any extra quotes
-    if (typeof userId === "string") {
-      userId = userId.replace(/^"(.*)"$/, "$1"); // Remove surrounding quotes if present
-    }
+    // Helper to strip extra quotes from string fields (often caused by FormData + JSON.stringify)
+    const stripQuotes = (val) => (typeof val === "string" ? val.replace(/^"(.*)"$/, "$1") : val);
+
+    // Clean critical fields of any extra quotes
+    userId = stripQuotes(userId);
+    let cashCollectionAt = stripQuotes(payload.cashCollectionAt || payment.cashCollectionAt || null);
 
     const orderId = generateOrderId();
     console.log("Payload received for creating transaction:", payload);
@@ -59,7 +61,7 @@ const CreateTransaction = async (payload) => {
     const order = await Order.create({
       orderId,
       userId,
-      distance,
+      distance: Number(stripQuotes(distance)) || 0,
       receiverDetails: {
         name: receiverDetails.name,
         mobile: receiverDetails.mobile,
@@ -81,16 +83,16 @@ const CreateTransaction = async (payload) => {
         },
       },
       packageDetails: {
-        type: packageDetails.type,
+        type: packageDetails.packageType || packageDetails.type,
         weight: packageDetails.weight,
         dimensions: packageDetails.dimensions,
         description: packageDetails.description,
       },
       vehicleDetails: {
-        vehicleType: vehicleDetails.vehicleType,
-        vehicleId: vehicleDetails.vehicleId,
-        vehicleName: vehicleDetails.vehicleName,
-        vehicleImageUrl: vehicleDetails.vehicleImageUrl,
+        vehicleType: vehicleDetails.type || vehicleDetails.vehicleType,
+        vehicleId: vehicleDetails.id || vehicleDetails.vehicleId,
+        vehicleName: vehicleDetails.name || vehicleDetails.vehicleName,
+        vehicleImageUrl: vehicleDetails.image || vehicleDetails.vehicleImageUrl,
       },
       payment: {
         method:
@@ -99,7 +101,7 @@ const CreateTransaction = async (payload) => {
             : payment.method?.includes("Cash")
               ? "CASH"
               : "WALLET",
-        cashCollectionAt: payment.cashCollectionAt || null,
+        cashCollectionAt: cashCollectionAt,
       },
       pricing: {
         totalAmount: payment.amount,
