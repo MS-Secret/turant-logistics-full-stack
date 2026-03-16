@@ -11,7 +11,8 @@ const AddVehicleDetails = async (payload) => {
       vehicleBodyDetails,
       vehicleBodyType,
       vehicleFuelType,
-      VehicleRc,
+      vehicleRC,
+      vehiclePhoto,
     } = payload;
 
     if (!vehicleNumber || !userId) {
@@ -20,16 +21,30 @@ const AddVehicleDetails = async (payload) => {
         message: "VehicleNumber and UserId are required",
       };
     }
-    let vehicleRCImgUrl = await cloudinary.UploadToCloudinary(
-      VehicleRc,
-      "vehicleRC"
-    );
+
+    let vehicleRCImgUrl = "";
+    if (vehicleRC) {
+      vehicleRCImgUrl = await cloudinary.UploadToCloudinary(
+        vehicleRC,
+        "vehicleRC"
+      );
+    }
+
+    let vehiclePhotoUrl = "";
+    if (vehiclePhoto) {
+      vehiclePhotoUrl = await cloudinary.UploadToCloudinary(
+        vehiclePhoto,
+        "vehiclePhoto"
+      );
+    }
+
     const KYCApplication = await KYCModel.findOneAndUpdate(
       { userId },
       {
         vehicle: {
           vehicleNumber,
           vehicleRCImgUrl,
+          vehiclePhotoUrl,
           operationCity,
           vehicleType: vehicleType || "truck",
           vehicleBodyDetails: {

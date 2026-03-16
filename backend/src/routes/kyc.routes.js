@@ -45,7 +45,10 @@ Router.post(
 Router.post(
   "/vehicle-details",
   verifyToken,
-  upload.single("vehicleRC"),
+  upload.fields([
+    { name: "vehicleRC", maxCount: 1 },
+    { name: "vehicleImageDocument", maxCount: 1 },
+  ]),
   CreateVehicleDetails
 );
 

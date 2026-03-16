@@ -52,6 +52,10 @@ const KYCApplicationSchema = createBaseSchema({
       type: String,
       required: false,
     },
+    vehiclePhotoUrl: {
+      type: String,
+      required: false,
+    },
     operationCity: {
       type: String,
       required: false,

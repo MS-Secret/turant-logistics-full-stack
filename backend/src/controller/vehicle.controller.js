@@ -30,12 +30,9 @@ const CreateVehicleDetails = async (req, res) => {
         : {},
       vehicleBodyType,
       vehicleFuelType,
-      VehicleRc: req?.file,
+      vehicleRC: req?.files?.['vehicleRC']?.[0],
+      vehiclePhoto: req?.files?.['vehicleImageDocument']?.[0],
     };
-
-    if (req?.file) {
-      payload.VehicleRc = req.file;
-    }
 
     const result = await vehicleService.AddVehicleDetails(payload);
     if (!result.success) {
