@@ -90,9 +90,10 @@ const ProcessWithdrawal = async (req, res) => {
     }
 };
 
-const GetPendingWithdrawalsAdmin = async (req, res) => {
+const GetWithdrawalsAdmin = async (req, res) => {
     try {
-        const result = await WalletService.getPendingWithdrawalsAdmin();
+        const { status } = req.query;
+        const result = await WalletService.getWithdrawalsAdmin(status);
         return res.status(result.success ? 200 : 400).json(result);
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
@@ -128,7 +129,7 @@ module.exports = {
     InitiateRecharge,
     VerifyRecharge,
     ProcessWithdrawal,
-    GetPendingWithdrawalsAdmin,
+    GetWithdrawalsAdmin,
     ApproveWithdrawalAdmin,
     RejectWithdrawalAdmin
 };

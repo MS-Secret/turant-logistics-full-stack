@@ -413,22 +413,28 @@ const processWithdrawal = async (driverId, amount, method, bankDetails, upiDetai
 
 // --- NEW ADMIN FUNCTIONS ---
 
-const getPendingWithdrawalsAdmin = async () => {
+const getWithdrawalsAdmin = async (status) => {
     try {
-        const requests = await WithdrawalRequest.find({ status: "PENDING" }).populate("driver").lean();
+        const query = status && status !== 'ALL' ? { status } : {};
+        const requests = await WithdrawalRequest.find(query).populate("driver").sort({ requestDate: -1 }).lean();
 
         // Populate User details manually because Driver.userId is a String, not an ObjectId
         for (let req of requests) {
             if (req.driver && req.driver.userId) {
                 const user = await User.findOne({ userId: req.driver.userId }).lean();
-                // Attach the user data directly to the driver object for the frontend
-                req.driver.userId = user || { fullName: "Unknown", phone: "N/A" };
+                if (user) {
+                    // Manually construct fullName because .lean() removes virtuals
+                    user.fullName = `${user.profile?.firstName || ''} ${user.profile?.lastName || ''}`.trim() || user.phone;
+                    req.driver.userId = user;
+                } else {
+                    req.driver.userId = { fullName: "Unknown", phone: "N/A" };
+                }
             }
         }
 
         return { success: true, data: requests };
     } catch (error) {
-        console.error("Error fetching pending withdrawals:", error);
+        console.error("Error fetching withdrawals:", error);
         return { success: false, message: error.message };
     }
 };
@@ -564,7 +570,7 @@ module.exports = {
     initiateRecharge,
     verifyRecharge,
     processWithdrawal,
-    getPendingWithdrawalsAdmin,
+    getWithdrawalsAdmin,
     approveWithdrawalAdmin,
     rejectWithdrawalAdmin
 };

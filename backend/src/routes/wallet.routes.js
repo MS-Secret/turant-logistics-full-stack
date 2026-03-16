@@ -13,7 +13,7 @@ router.post("/withdraw", verifyToken, walletController.ProcessWithdrawal);
 router.post("/process-order", verifyToken, walletController.ProcessOrderTest);
 
 // Admin Approval Routes
-router.get("/admin/pending", verifyToken, walletController.GetPendingWithdrawalsAdmin);
+router.get("/admin/requests", verifyToken, walletController.GetWithdrawalsAdmin);
 router.post("/admin/approve", verifyToken, walletController.ApproveWithdrawalAdmin);
 router.post("/admin/reject", verifyToken, walletController.RejectWithdrawalAdmin);
 
