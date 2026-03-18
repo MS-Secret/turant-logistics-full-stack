@@ -524,7 +524,7 @@ const SubmitRideRating = async (payload) => {
   }
 };
 
-const cancelOrderWithRefund = async (orderId) => {
+const cancelOrderWithRefund = async (orderId, io) => {
   try {
     const order = await OrderModel.findOne({ orderId });
     if (!order) {
@@ -537,34 +537,60 @@ const cancelOrderWithRefund = async (orderId) => {
 
     // Check if there was an online payment that succeeded
     let refundMessage = "Order cancelled successfully.";
-    if (order.paymentDetails?.status === "SUCCESS" && order.paymentDetails?.transaction?.modeOfPayment === "ONLINE") {
-      const transactionId = order.paymentDetails.transaction.transactionId;
-      const amount = order.paymentDetails.transaction.amount;
+    
+    // Check payment method from order and status from related transaction
+    const transaction = await transactionsModel.findOne({ 
+      "metaData.orderId": orderId,
+      modeOfPayment: "ONLINE",
+      status: "COMPLETED"
+    });
 
-      // We need cashfreeOrderId if possible, but transaction model might have it
-      const transaction = await transactionsModel.findOne({ transactionId });
-      let cashfreeOrderId = transaction?.cashfreeOrderId || orderId; // fallback
+    if (order.payment?.method === "ONLINE" || transaction) {
+      if (transaction && transaction.cashfreeOrderId) {
+        const amount = transaction.amount;
+        if (amount && amount > 0) {
+          const refundResponse = await cashfreeService.createRefund(
+            transaction.cashfreeOrderId,
+            amount,
+            `REF_${orderId}_${Date.now()}`
+          );
 
-      if (amount && amount > 0) {
-        const refundResponse = await cashfreeService.createRefund(
-          cashfreeOrderId,
-          amount,
-          `REF_${orderId}_${Date.now()}`
-        );
-
-        if (refundResponse.success) {
-          order.paymentDetails.status = "REFUND_INITIATED";
-          order.refundAmount = amount;
-          refundMessage = "Order cancelled and refund initiated successfully.";
-        } else {
-          console.error("Refund failed:", refundResponse.error);
-          refundMessage = "Order cancelled, but refund failed to initiate. Please contact support.";
+          if (refundResponse.success) {
+            order.payment.status = "REFUND_INITIATED";
+            order.refundAmount = amount;
+            refundMessage = "Order cancelled and refund initiated successfully.";
+            
+            // Sync transaction status
+            transaction.status = "REFUNDED";
+            await transaction.save();
+          } else {
+            console.error("Refund failed:", refundResponse.error);
+            refundMessage = "Order cancelled, but refund failed to initiate. Please contact support.";
+          }
         }
+      } else if (order.payment?.method === "ONLINE") {
+        refundMessage = "Order cancelled. No successful online transaction found to refund.";
       }
     }
 
     order.status = "CANCELLED";
     await order.save();
+
+    // Emit socket event to consumer to clear their UI
+    if (io && order.userId) {
+      io.to(`user_${order.userId}`).emit("ride_cancelled", {
+        orderId,
+        message: "Your ride has been cancelled successfully."
+      });
+    }
+
+    // Clean up active ride requests in socket.js
+    try {
+      const { cleanupRideRequestByOrderId } = require("../socket/socket");
+      cleanupRideRequestByOrderId(orderId);
+    } catch (socketErr) {
+      console.error("Error calling cleanupRideRequestByOrderId:", socketErr);
+    }
 
     return {
       success: true,
@@ -642,25 +668,34 @@ const adminForceCancelRide = async (orderId, adminId, reason = "USER_NO_SHOW", i
 
     // Optional: Issue a refund if requested/applicable via cashfree
     let refundMessage = "Admin Force Cancelled.";
-    if (order.paymentDetails?.status === "SUCCESS" && order.paymentDetails?.transaction?.modeOfPayment === "ONLINE") {
-      const transactionId = order.paymentDetails.transaction.transactionId;
-      const amount = order.paymentDetails.transaction.amount;
+    
+    // Link to transaction for correct refund data
+    const transaction = await transactionsModel.findOne({ 
+      "metaData.orderId": orderId,
+      modeOfPayment: "ONLINE",
+      status: "COMPLETED"
+    });
 
-      const transaction = await transactionsModel.findOne({ transactionId });
-      let cashfreeOrderId = transaction?.cashfreeOrderId || orderId;
-
-      if (amount && amount > 0) {
-        const refundResponse = await cashfreeService.createRefund(
-          cashfreeOrderId,
-          amount,
-          `ADMIN_REF_${orderId}_${Date.now()}`
-        );
-        if (refundResponse.success) {
-          order.paymentDetails.status = "REFUND_INITIATED";
-          order.refundAmount = amount;
-          refundMessage = "Admin force cancelled and refund initiated.";
-        } else {
-          refundMessage = "Admin force cancelled, but online refund failed.";
+    if (order.payment?.method === "ONLINE" || transaction) {
+      if (transaction && transaction.cashfreeOrderId) {
+        const amount = transaction.amount;
+        if (amount && amount > 0) {
+          const refundResponse = await cashfreeService.createRefund(
+            transaction.cashfreeOrderId,
+            amount,
+            `ADMIN_REF_${orderId}_${Date.now()}`
+          );
+          if (refundResponse.success) {
+            order.payment.status = "REFUND_INITIATED";
+            order.refundAmount = amount;
+            refundMessage = "Admin force cancelled and refund initiated.";
+            
+            // Sync transaction status
+            transaction.status = "REFUNDED";
+            await transaction.save();
+          } else {
+            refundMessage = "Admin force cancelled, but online refund failed.";
+          }
         }
       }
     }
@@ -671,6 +706,14 @@ const adminForceCancelRide = async (orderId, adminId, reason = "USER_NO_SHOW", i
     order.cancelledBy = adminId || "ADMIN";
 
     await order.save();
+
+    // Clean up active ride requests in socket.js
+    try {
+      const { cleanupRideRequestByOrderId } = require("../socket/socket");
+      cleanupRideRequestByOrderId(orderId);
+    } catch (socketErr) {
+      console.error("Error calling cleanupRideRequestByOrderId:", socketErr);
+    }
 
     // Reset Driver availability if there was a driver assigned
     if (assignedDriverId) {
@@ -705,6 +748,14 @@ const adminForceCancelRide = async (orderId, adminId, reason = "USER_NO_SHOW", i
         "Your ride was cancelled by our support team because the driver could not reach you at the pickup location.",
         orderId
       );
+
+      // Emit socket event to instantly clear the active ride on the consumer app
+      if (io) {
+        io.to(`user_${order.userId}`).emit("ride_cancelled", {
+          orderId,
+          message: "The support team has cancelled your current ride."
+        });
+      }
     }
 
     return {
@@ -735,4 +786,24 @@ module.exports = {
   cancelOrderWithRefund,
   getOrderInvoice,
   adminForceCancelRide,
+  getActiveRide: async (userId) => {
+    try {
+      const activeRide = await OrderModel.findOne({
+        userId: userId,
+        status: { $nin: ['COMPLETED', 'CANCELLED', 'REFUNDED', 'DELIVERED'] }
+      }).sort({ createdAt: -1 });
+
+      if (!activeRide) {
+        return { success: false, message: "No active ride found" };
+      }
+
+      // Populate full details using existing getOrderById logic
+      const result = await getOrderById({ orderId: activeRide.orderId });
+      return result;
+    } catch (error) {
+      console.error("Error in getActiveRide service:", error);
+      return { success: false, message: "Internal server error", error: error.message };
+    }
+  }
 };
+

@@ -10,6 +10,24 @@ const { calculateDistance } = require("../utils/locationUtils");
 // Store active ride requests and their timers
 const activeRideRequests = new Map();
 const rideRequestTimers = new Map();
+
+const cleanupRideRequestByOrderId = (orderId) => {
+  for (const [requestId, request] of activeRideRequests.entries()) {
+    if (request.orderId === orderId) {
+      // Clear the expiry timer if it exists
+      if (rideRequestTimers.has(requestId)) {
+        clearTimeout(rideRequestTimers.get(requestId));
+        rideRequestTimers.delete(requestId);
+      }
+      
+      // Remove from active requests
+      activeRideRequests.delete(requestId);
+      console.log(`🧹 Cleaned up active ride request ${requestId} for order ${orderId}`);
+      return true;
+    }
+  }
+  return false;
+};
 dotenv.config();
 
 // Create logger instance
@@ -873,4 +891,4 @@ const initializeSocket = (server) => {
   }
 };
 
-module.exports = { initializeSocket };
+module.exports = { initializeSocket, cleanupRideRequestByOrderId };

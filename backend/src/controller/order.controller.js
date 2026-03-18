@@ -146,7 +146,8 @@ const CancelOrder = async (req, res) => {
       });
     }
 
-    const result = await OrderService.cancelOrderWithRefund(orderId);
+    const io = req.app.get("io");
+    const result = await OrderService.cancelOrderWithRefund(orderId, io);
 
     if (!result?.success) {
       return res.status(httpStatusCode.BAD_REQUEST).json(result);
@@ -224,6 +225,31 @@ const AdminForceCancelOrder = async (req, res) => {
   }
 };
 
+const GetActiveRide = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(httpStatusCode.BAD_REQUEST).json({
+        success: false,
+        message: "User ID is required",
+      });
+    }
+    const result = await OrderService.getActiveRide(userId);
+    if (!result?.success) {
+      return res.status(httpStatusCode.OK).json(result); // Return 200 with success:false if none found
+    }
+    return res.status(httpStatusCode.OK).json(result);
+  } catch (error) {
+    console.error("Error fetching active ride:", error);
+    return res.status(httpStatusCode.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Failed to fetch active ride",
+      error: error.message,
+    });
+  }
+};
+
+
 module.exports = {
   GetAllOrders,
   GetConsumersOrders,
@@ -233,4 +259,6 @@ module.exports = {
   CancelOrder,
   GetOrderInvoice,
   AdminForceCancelOrder,
+  GetActiveRide,
 };
+

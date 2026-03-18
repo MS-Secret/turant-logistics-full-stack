@@ -547,23 +547,8 @@ const SendRideRequestToDrivers = async (payload) => {
       }
     }
 
-    await sendToMultipleDevices(
-      users.flatMap(
-        (user) =>
-          user.metadata.deviceInfo?.map((device) => device.fcmToken) || []
-      ),
-      {
-        title: "New Delivery Request",
-        body: `New delivery request from ${consumer?.firstName || "Customer"}`,
-      },
-      {
-        type: "RIDE_REQUEST",
-        rideRequestData: JSON.stringify(rideRequestData),
-        consumerData: JSON.stringify(consumer),
-        orderId: orderId || "", // IMPORTANT: Include orderId in notification data
-        timestamp: new Date().toISOString(),
-      }
-    );
+    // FCM Notification emission removed from here to prevent duplicate notifications.
+    // The detailed notification is handled exclusively by SendRideRequestNotification in socket.js
 
     return {
       success: true,
@@ -915,7 +900,7 @@ const BlockDriver = async ({ userId }) => {
     // 2. Update Driver model status
     const driver = await Driver.findOneAndUpdate(
       { userId },
-      { 
+      {
         approvalStatus: 'SUSPENDED',
         isActive: false,
         workingStatus: 'OFFLINE' // Force offline
@@ -950,9 +935,9 @@ const UnblockDriver = async ({ userId }) => {
     // 2. Update Driver model status
     const driver = await Driver.findOneAndUpdate(
       { userId },
-      { 
+      {
         approvalStatus: 'APPROVED',
-        isActive: true 
+        isActive: true
       },
       { new: true }
     );

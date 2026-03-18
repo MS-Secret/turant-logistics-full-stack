@@ -111,12 +111,21 @@ const SendTestNotification = async (payload) => {
 
 const GetUserNotifications = async (payload) => {
   try {
-    const { userId } = payload;
+    const { userId, page = 1, limit = 10 } = payload;
     if (!userId) {
       return { success: false, message: "Missing required field: userId" };
     }
 
-    const notifications = await NotificationModel.find({ userId }).sort({ createdAt: -1 });
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Fetch notifications with pagination
+    const [notifications, totalCount] = await Promise.all([
+      NotificationModel.find({ userId })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit)),
+      NotificationModel.countDocuments({ userId })
+    ]);
 
     // Map to frontend expected format
     const formattedNotifications = notifications.map(n => ({
@@ -131,7 +140,13 @@ const GetUserNotifications = async (payload) => {
     return {
       success: true,
       message: "Notifications fetched successfully",
-      data: formattedNotifications
+      data: formattedNotifications,
+      pagination: {
+        total: totalCount,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(totalCount / parseInt(limit))
+      }
     };
   } catch (error) {
     console.error("Error fetching user notifications:", error);

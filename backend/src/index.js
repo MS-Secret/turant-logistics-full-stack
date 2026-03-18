@@ -13,6 +13,8 @@ const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const { createDefaultAdmin } = require("./services/auth.service");
 const { DispatchScheduledCampaigns } = require("./services/campaign.service");
+const cron = require('node-cron');
+const { ResetDailyEarnings } = require('./services/driver.service');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -198,6 +200,17 @@ async function startServer() {
           logger.error("Error in DispatchScheduledCampaigns interval:", err);
         }
       }, 60 * 1000);
+
+      // Schedule ResetDailyEarnings to run every day at midnight (00:00)
+      cron.schedule('0 0 * * *', async () => {
+        logger.info('Running scheduled task: ResetDailyEarnings at midnight');
+        try {
+          const result = await ResetDailyEarnings();
+          logger.info(`Scheduled ResetDailyEarnings completed: ${result.message}`);
+        } catch (err) {
+          logger.error("Error in scheduled ResetDailyEarnings:", err);
+        }
+      });
 
     });
   } catch (error) {
