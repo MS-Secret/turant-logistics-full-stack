@@ -575,6 +575,7 @@ const getUserProfile = async (userId) => {
   return {
     ...user?._doc,
     profile: roleSpecificData,
+    ...(user.role === 'DRIVER' && { driver: roleSpecificData }),
   };
 };
 

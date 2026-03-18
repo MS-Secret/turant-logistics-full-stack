@@ -600,9 +600,12 @@ const CompleteRideByDriver = async ({ driverId, orderId, amount }) => {
     driver.statistics.completedOrders += 1;
 
     // Update earnings with safe validation
-    const safeAmount = (amount && !isNaN(amount)) ? Number(amount) : 0;
-    driver.earnings.totalEarnings += safeAmount;
-    driver.earnings.todayEarnings += safeAmount;
+    // The following earnings updates are removed as they are now handled by wallet.service.js
+    // to avoid double-counting the full customer fare.
+    // const safeAmount = (amount && !isNaN(amount)) ? Number(amount) : 0;
+    // driver.earnings.totalEarnings += safeAmount;
+    // driver.earnings.todayEarnings += safeAmount;
+
 
     // Driver becomes available again after completing the ride
     driver.workingStatus = "ONLINE";
