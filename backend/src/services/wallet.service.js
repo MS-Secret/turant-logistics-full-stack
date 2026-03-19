@@ -482,9 +482,37 @@ const approveWithdrawalAdmin = async (requestId) => {
 
         const transferResult = await cashfreeService.requestTransfer(transferDetails);
         if (!transferResult.success) {
+            const failNote = "Cashfree Transfer Failed: " + transferResult.error;
             withdrawalReq.status = "FAILED";
-            withdrawalReq.adminNote = "Cashfree Transfer Failed: " + transferResult.error;
+            withdrawalReq.adminNote = failNote;
             await withdrawalReq.save();
+
+            // Auto-refund the locked amount back to wallet
+            const wallet = await Wallet.findOne({ driver: driver._id });
+            if (wallet) {
+                wallet.balance += withdrawalReq.amount; // Refund
+
+                const tx = wallet.transactions.find(t =>
+                    t.amount === withdrawalReq.amount &&
+                    t.type === "DEBIT" &&
+                    t.status === "PENDING" &&
+                    t.description.includes("Withdrawal Request")
+                );
+
+                if (tx) {
+                    tx.status = "FAILED";
+                    tx.description = `Withdrawal Failed: ${failNote}`;
+                } else {
+                    wallet.transactions.push({
+                        type: "CREDIT",
+                        amount: withdrawalReq.amount,
+                        description: `Refund: Withdrawal Failed`,
+                        status: "SUCCESS"
+                    });
+                }
+                await wallet.save();
+            }
+
             return { success: false, message: "Transfer failed: " + transferResult.error };
         }
 
