@@ -7,7 +7,7 @@ import {
   LayoutDashboard,
   Truck,
   Users,
-  DollarSign,
+  IndianRupee,
   Package,
   BarChart3,
   Settings,
@@ -56,13 +56,13 @@ const Sidebar = () => {
     },
     {
       title: 'Pricing',
-      icon: DollarSign,
+      icon: IndianRupee,
       href: '/dashboard/pricing',
       color: 'text-yellow-500'
     },
     {
       title: 'Withdrawals',
-      icon: DollarSign,
+      icon: IndianRupee,
       href: '/dashboard/withdrawals',
       color: 'text-teal-500'
     },
