@@ -13,8 +13,10 @@ import {
   Star,
   Activity,
   Clock,
-  Mail
+  Mail,
+  Ban
 } from 'lucide-react'
+import { toast } from 'react-hot-toast'
 import DriversService from '@/services/drivers'
 import { useRouter } from 'next/navigation';
 
@@ -150,6 +152,32 @@ const DriversPage = () => {
       console.error("Error fetching drivers:", error);
     }finally{
       setLoading(false);
+    }
+  }
+
+  const handleToggleBlock = async (e: React.MouseEvent, driver: Driver) => {
+    e.stopPropagation();
+    const isBlocking = driver.isActive;
+    const confirmMsg = isBlocking 
+      ? `Are you sure you want to block ${driver.user.fullName || driver.user.username}?`
+      : `Are you sure you want to unblock ${driver.user.fullName || driver.user.username}?`;
+    
+    if (confirm(confirmMsg)) {
+      try {
+        const response = isBlocking 
+          ? await DriversService.BlockDriver(driver.userId)
+          : await DriversService.UnblockDriver(driver.userId);
+        
+        if (response?.status === 200) {
+          toast.success(`Driver ${isBlocking ? 'blocked' : 'unblocked'} successfully`);
+          handleGetDrivers(); // Refresh list
+        } else {
+          toast.error(`Failed to ${isBlocking ? 'block' : 'unblock'} driver`);
+        }
+      } catch (error) {
+        console.error("Error toggling block status:", error);
+        toast.error("An error occurred");
+      }
     }
   }
 
@@ -328,6 +356,13 @@ const DriversPage = () => {
                   </button>
                   <button className="text-green-600 hover:text-green-900 p-1 rounded">
                     <Edit className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={(e) => handleToggleBlock(e, driver)}
+                    className={`${driver.isActive ? 'text-orange-600 hover:text-orange-900' : 'text-blue-600 hover:text-blue-900'} p-1 rounded`}
+                    title={driver.isActive ? "Block Driver" : "Unblock Driver"}
+                  >
+                    <Ban className="w-4 h-4" />
                   </button>
                   <button className="text-red-600 hover:text-red-900 p-1 rounded">
                     <Trash2 className="w-4 h-4" />

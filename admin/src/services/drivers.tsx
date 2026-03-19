@@ -24,10 +24,26 @@ const UpdateDriverKycStatus = async (driverId: string, payload:any) =>
     files: true
   });
 
+const BlockDriver = async (userId: string) =>
+  Request({
+    method: "POST",
+    url: `auth/driver/block/${userId}`,
+    secure: true,
+  });
+
+const UnblockDriver = async (userId: string) =>
+  Request({
+    method: "POST",
+    url: `auth/driver/unblock/${userId}`,
+    secure: true,
+  });
+
 const DriversService = {
   GetDrivers,
   GetDriverById,
   UpdateDriverKycStatus,
+  BlockDriver,
+  UnblockDriver,
 };
 
 export default DriversService;

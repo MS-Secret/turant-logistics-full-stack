@@ -42,22 +42,26 @@ interface WithdrawalRequest {
     upiDetails?: UpiDetails;
     status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'FAILED';
     requestDate: string;
+    adminNote?: string;
+    transferId?: string;
 }
 
 const WithdrawalsPage = () => {
     const [requests, setRequests] = useState<WithdrawalRequest[]>([]);
     const [loading, setLoading] = useState(false);
     const [processingId, setProcessingId] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL'>('PENDING');
+    const [searchQuery, setSearchQuery] = useState('');
 
     // For reject modal
     const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
     const [selectedRequest, setSelectedRequest] = useState<string | null>(null);
     const [adminNote, setAdminNote] = useState('');
 
-    const fetchPendingWithdrawals = async () => {
+    const fetchWithdrawals = async () => {
         setLoading(true);
         try {
-            const response = await WithdrawalsService.GetPendingWithdrawals();
+            const response = await WithdrawalsService.GetWithdrawals(activeTab);
             if (response?.data?.success) {
                 setRequests(response.data.data || []);
             } else {
@@ -72,8 +76,15 @@ const WithdrawalsPage = () => {
     }
 
     useEffect(() => {
-        fetchPendingWithdrawals();
-    }, [])
+        fetchWithdrawals();
+    }, [activeTab])
+
+    const filteredRequests = requests.filter(req => {
+        const fullName = req.driver?.userId?.fullName?.toLowerCase() || '';
+        const phone = req.driver?.userId?.phone || '';
+        const query = searchQuery.toLowerCase();
+        return fullName.includes(query) || phone.includes(query);
+    });
 
     const handleApprove = async (id: string) => {
         if (!window.confirm("Are you sure you want to approve this withdrawal? Funds will be transferred immediately via Cashfree.")) {
@@ -85,7 +96,7 @@ const WithdrawalsPage = () => {
             const response = await WithdrawalsService.ApproveWithdrawal(id);
             if (response?.data?.success) {
                 toast.success("Withdrawal approved successfully!");
-                fetchPendingWithdrawals(); // Refresh list
+                fetchWithdrawals(); // Refresh list
             } else {
                 toast.error(response?.data?.message || "Failed to approve");
             }
@@ -116,7 +127,7 @@ const WithdrawalsPage = () => {
             const response = await WithdrawalsService.RejectWithdrawal(selectedRequest, adminNote);
             if (response?.data?.success) {
                 toast.success("Withdrawal rejected and amount refunded.");
-                fetchPendingWithdrawals(); // Refresh list
+                fetchWithdrawals(); // Refresh list
             } else {
                 toast.error(response?.data?.message || "Failed to reject");
             }
@@ -128,14 +139,53 @@ const WithdrawalsPage = () => {
         }
     }
 
+    const tabs = [
+        { id: 'PENDING', label: 'Pending', icon: Clock, color: 'text-yellow-500' },
+        { id: 'APPROVED', label: 'Approved', icon: CheckCircle, color: 'text-green-500' },
+        { id: 'REJECTED', label: 'Rejected', icon: XCircle, color: 'text-red-500' },
+        { id: 'ALL', label: 'All Requests', icon: DollarSign, color: 'text-blue-500' },
+    ];
+
     return (
         <div className="space-y-6 relative">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Pending Withdrawals</h1>
-                    <p className="text-gray-600 mt-1">Review and approve driver withdrawal requests</p>
+                    <h1 className="text-3xl font-bold text-gray-900">Withdrawals</h1>
+                    <p className="text-gray-600 mt-1">Manage and track driver withdrawal requests</p>
                 </div>
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                        type="text"
+                        placeholder="Search by name or phone..."
+                        className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex border-b border-gray-200">
+                {tabs.map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = activeTab === tab.id;
+                    return (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`flex items-center space-x-2 px-6 py-3 border-b-2 transition-colors ${
+                                isActive 
+                                    ? 'border-blue-600 text-blue-600' 
+                                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                            }`}
+                        >
+                            <Icon className={`w-4 h-4 ${isActive ? 'text-blue-600' : tab.color}`} />
+                            <span className="font-medium">{tab.label}</span>
+                        </button>
+                    )
+                })}
             </div>
 
             {/* Stats Cards */}
@@ -143,8 +193,8 @@ const WithdrawalsPage = () => {
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-gray-600">Pending Requests</p>
-                            <p className="text-2xl font-bold text-gray-900">{requests.length}</p>
+                            <p className="text-sm text-gray-600">{activeTab.charAt(0) + activeTab.slice(1).toLowerCase()} Requests</p>
+                            <p className="text-2xl font-bold text-gray-900">{filteredRequests.length}</p>
                         </div>
                         <Clock className="w-8 h-8 text-yellow-500" />
                     </div>
@@ -152,9 +202,9 @@ const WithdrawalsPage = () => {
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-gray-600">Total Pending Amount</p>
+                            <p className="text-sm text-gray-600">Total Amount</p>
                             <p className="text-2xl font-bold text-blue-600">
-                                ₹{requests.reduce((sum, req) => sum + req.amount, 0).toFixed(2)}
+                                ₹{filteredRequests.reduce((sum, req) => sum + req.amount, 0).toFixed(2)}
                             </p>
                         </div>
                         <DollarSign className="w-8 h-8 text-blue-500" />
@@ -171,8 +221,8 @@ const WithdrawalsPage = () => {
                                 <th scope="col" className="px-6 py-3">Date</th>
                                 <th scope="col" className="px-6 py-3">Driver</th>
                                 <th scope="col" className="px-6 py-3">Amount</th>
-                                <th scope="col" className="px-6 py-3">Method</th>
-                                <th scope="col" className="px-6 py-3">Details</th>
+                                <th scope="col" className="px-6 py-3">Method / Details</th>
+                                <th scope="col" className="px-6 py-3">Status</th>
                                 <th scope="col" className="px-6 py-3 text-right">Actions</th>
                             </tr>
                         </thead>
@@ -185,14 +235,14 @@ const WithdrawalsPage = () => {
                                         </div>
                                     </td>
                                 </tr>
-                            ) : requests.length === 0 ? (
+                            ) : filteredRequests.length === 0 ? (
                                 <tr>
                                     <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
-                                        No pending withdrawal requests found.
+                                        No {activeTab.toLowerCase()} withdrawal requests found.
                                     </td>
                                 </tr>
                             ) : (
-                                requests.map((request) => (
+                                filteredRequests.map((request) => (
                                     <tr key={request._id} className="bg-white border-b hover:bg-gray-50">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             {new Date(request.requestDate).toLocaleDateString()}
@@ -212,50 +262,69 @@ const WithdrawalsPage = () => {
                                             ₹{request.amount.toFixed(2)}
                                         </td>
                                         <td className="px-6 py-4">
-                                            <div className="flex items-center space-x-1">
+                                            <div className="flex items-center space-x-1 mb-1">
                                                 {request.method === 'BANK' ? (
-                                                    <Banknote className="w-4 h-4 text-gray-500" />
+                                                    <Banknote className="w-4 h-4 text-gray-400" />
                                                 ) : (
-                                                    <Smartphone className="w-4 h-4 text-gray-500" />
+                                                    <Smartphone className="w-4 h-4 text-gray-400" />
                                                 )}
                                                 <span className="font-medium text-gray-700">{request.method}</span>
                                             </div>
-                                        </td>
-                                        <td className="px-6 py-4">
                                             {request.method === 'BANK' ? (
-                                                <div className="text-xs">
-                                                    <p><span className="text-gray-400">A/C:</span> {request.bankDetails?.accountNumber}</p>
-                                                    <p><span className="text-gray-400">IFSC:</span> {request.bankDetails?.ifsc}</p>
-                                                    <p><span className="text-gray-400">Name:</span> {request.bankDetails?.accountHolderName}</p>
+                                                <div className="text-[10px] text-gray-500 leading-tight">
+                                                    <p>A/C: {request.bankDetails?.accountNumber}</p>
+                                                    <p>IFSC: {request.bankDetails?.ifsc}</p>
                                                 </div>
                                             ) : (
-                                                <div className="text-xs">
-                                                    <p><span className="text-gray-400">UPI ID:</span> {request.upiDetails?.upiId}</p>
+                                                <div className="text-[10px] text-gray-500">
+                                                    <p>ID: {request.upiDetails?.upiId}</p>
                                                 </div>
                                             )}
+                                            {request.transferId && (
+                                                <div className="mt-1 text-[10px] text-blue-500 font-medium">
+                                                    TXN: {request.transferId}
+                                                </div>
+                                            )}
+                                            {request.adminNote && (
+                                                <div className="mt-1 text-[10px] text-red-500 italic">
+                                                    Note: {request.adminNote}
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${
+                                                request.status === 'APPROVED' ? 'bg-green-100 text-green-700' :
+                                                request.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                                                request.status === 'FAILED' ? 'bg-red-100 text-red-700' :
+                                                'bg-yellow-100 text-yellow-700'
+                                            }`}>
+                                                {request.status}
+                                            </span>
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             {processingId === request._id ? (
                                                 <div className="flex justify-end">
                                                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
                                                 </div>
-                                            ) : (
+                                            ) : request.status === 'PENDING' ? (
                                                 <div className="flex items-center justify-end space-x-2">
                                                     <button
                                                         onClick={() => handleApprove(request._id)}
-                                                        className="flex items-center space-x-1 px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 rounded-md transition-colors"
+                                                        className="p-1.5 bg-green-50 text-green-700 hover:bg-green-100 rounded-md transition-colors"
+                                                        title="Approve"
                                                     >
                                                         <CheckCircle className="w-4 h-4" />
-                                                        <span className="text-sm font-medium">Approve</span>
                                                     </button>
                                                     <button
                                                         onClick={() => openRejectModal(request._id)}
-                                                        className="flex items-center space-x-1 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded-md transition-colors"
+                                                        className="p-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded-md transition-colors"
+                                                        title="Reject"
                                                     >
                                                         <XCircle className="w-4 h-4" />
-                                                        <span className="text-sm font-medium">Reject</span>
                                                     </button>
                                                 </div>
+                                            ) : (
+                                                <span className="text-xs text-gray-400">No actions</span>
                                             )}
                                         </td>
                                     </tr>

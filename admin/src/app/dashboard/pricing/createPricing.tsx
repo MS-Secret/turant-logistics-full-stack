@@ -207,10 +207,19 @@ const CreatePricing = ({ onClose, refreshData, setRefreshData, initialData }: { 
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="">Select body type</option>
-                  <option value="open">Open</option>
-                  <option value="closed">Closed</option>
-                  <option value="container">Container</option>
-                  <option value="refrigerated">Refrigerated</option>
+                  {vehicleType === "2 Wheeler" ? (
+                    <>
+                      <option value="scooter">Scooter</option>
+                      <option value="bike">Bike</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="open">Open</option>
+                      <option value="closed">Closed</option>
+                      <option value="container">Container</option>
+                      <option value="refrigerated">Refrigerated</option>
+                    </>
+                  )}
                 </select>
               </div>
 

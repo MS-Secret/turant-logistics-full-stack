@@ -183,7 +183,7 @@ const ConsumersMain = () => {
               <p className="text-sm text-gray-600">Gold Tier</p>
               <p className="text-2xl font-bold text-purple-600">
                 {
-                  consumers.filter((c) => c.loyaltyPoints.tier === "GOLD")
+                  consumers.filter((c) => c?.loyaltyPoints?.tier === "GOLD")
                     .length
                 }
               </p>
@@ -196,7 +196,7 @@ const ConsumersMain = () => {
             <div>
               <p className="text-sm text-gray-600">Verified</p>
               <p className="text-2xl font-bold text-blue-600">
-                {consumers.filter((c) => c.user.phoneVerified).length}
+                {consumers.filter((c) => c?.user?.phoneVerified).length}
               </p>
             </div>
             <Calendar className="w-8 h-8 text-blue-500" />
@@ -245,11 +245,11 @@ const ConsumersMain = () => {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
                 <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold text-lg">
-                  {consumer.user.username?.charAt(0)?.toUpperCase() || "U"}
+                  {consumer.user?.username?.charAt(0)?.toUpperCase() || "U"}
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">
-                    {consumer.user.username}
+                    {consumer.user?.username || "Unknown User"}
                   </h3>
                   <p className="text-sm text-gray-500">{consumer.consumerId}</p>
                 </div>
@@ -276,15 +276,15 @@ const ConsumersMain = () => {
             <div className="space-y-2 mb-4">
               <div className="flex items-center text-sm text-gray-600">
                 <Phone className="w-4 h-4 text-gray-400 mr-2" />
-                {consumer.user.phone}
+                {consumer.user?.phone || "N/A"}
               </div>
               <div className="flex items-center text-sm text-gray-600">
                 <Mail className="w-4 h-4 text-gray-400 mr-2" />
-                {consumer.user.email}
+                {consumer.user?.email || "N/A"}
               </div>
               <div className="flex items-center text-sm text-gray-600">
                 <MapPin className="w-4 h-4 text-gray-400 mr-2" />
-                {consumer.user.profile.address.country}
+                {consumer.user?.profile?.address?.country || "Location N/A"}
               </div>
             </div>
 
@@ -302,10 +302,10 @@ const ConsumersMain = () => {
               <div className="flex items-center">
                 <Star className="w-4 h-4 text-yellow-400 fill-current mr-1" />
                 <span className="text-sm font-medium text-gray-900">
-                  {consumer.ratings.averageRating}
+                  {consumer.ratings?.averageRating || 0}
                 </span>
                 <span className="text-xs text-gray-500 ml-1">
-                  ({consumer.ratings.totalRatings})
+                  ({consumer.ratings?.totalRatings || 0})
                 </span>
               </div>
             </div>
@@ -337,10 +337,10 @@ const ConsumersMain = () => {
               </div>
               <div className="text-right">
                 <div className="text-sm font-semibold text-gray-900">
-                  {consumer.loyaltyPoints.current} pts
+                  {consumer.loyaltyPoints?.current || 0} pts
                 </div>
                 <div className="text-xs text-gray-500">
-                  {consumer.loyaltyPoints.tier} tier
+                  {consumer.loyaltyPoints?.tier || "Standard"} tier
                 </div>
               </div>
             </div>
@@ -352,7 +352,7 @@ const ConsumersMain = () => {
                   Joined {new Date(consumer.createdAt).toLocaleDateString()}
                 </span>
                 <span>
-                  {consumer.user.phoneVerified ? (
+                  {consumer.user?.phoneVerified ? (
                     <span className="text-green-600 font-medium">Verified</span>
                   ) : (
                     <span className="text-yellow-600 font-medium">Pending</span>

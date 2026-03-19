@@ -1,12 +1,12 @@
 "use client"
 import React, { useEffect, useState } from 'react'
-import { 
-  Package, 
-  Search, 
-  Filter, 
-  Plus, 
-  Eye, 
-  Edit, 
+import {
+  Package,
+  Search,
+  Filter,
+  Plus,
+  Eye,
+  Edit,
   Trash2,
   MapPin,
   Clock,
@@ -17,9 +17,18 @@ import {
   ChevronLeft,
   ChevronRight,
   Phone,
-  Weight
+  Weight,
+  Ban
 } from 'lucide-react'
 import OrderServices from '@/services/orders';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 // TypeScript interfaces for the order data
 interface Location {
@@ -92,6 +101,12 @@ const OrdersPage = () => {
   const [statusFilter, setStatusFilter] = useState('All Status');
   const [refreshing, setRefreshing] = useState(false);
 
+  // Force Cancel State
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [selectedOrderForCancel, setSelectedOrderForCancel] = useState<Order | null>(null);
+  const [cancelReason, setCancelReason] = useState('User No-Show or Driver Request');
+  const [isCancelling, setIsCancelling] = useState(false);
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'CREATED': return 'bg-blue-100 text-blue-800 border-blue-200'
@@ -105,7 +120,7 @@ const OrdersPage = () => {
   }
 
   const formatStatus = (status: string) => {
-    return status.split('_').map(word => 
+    return status.split('_').map(word =>
       word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
     ).join(' ');
   }
@@ -166,7 +181,7 @@ const OrdersPage = () => {
     try {
       const response = await OrderServices.GetAllOrders({ page, limit: 10 });
       console.log('Orders fetched successfully:', response);
-      
+
       if (response?.status === 200) {
         setOrders(response?.data?.data?.orders);
         setPagination(response?.data?.data?.pagination);
@@ -185,6 +200,27 @@ const OrdersPage = () => {
     setRefreshing(false);
   }
 
+  const handleForceCancel = async () => {
+    if (!selectedOrderForCancel) return;
+    setIsCancelling(true);
+    try {
+      const response = await OrderServices.ForceCancelOrder(selectedOrderForCancel.orderId, cancelReason);
+      if (response?.status === 200) {
+        // Refresh orders after successful cancellation
+        handleGetOrders(currentPage);
+        setIsCancelDialogOpen(false);
+        setSelectedOrderForCancel(null);
+      } else {
+        alert("Failed to cancel order: " + (response?.data?.message || "Unknown error"));
+      }
+    } catch (error) {
+      console.error('Error force cancelling order:', error);
+      alert("An error occurred while trying to cancel the order.");
+    } finally {
+      setIsCancelling(false);
+    }
+  }
+
   const handlePageChange = (newPage: number) => {
     if (pagination && newPage >= 1 && newPage <= pagination.totalPages) {
       handleGetOrders(newPage);
@@ -192,13 +228,13 @@ const OrdersPage = () => {
   }
 
   const filteredOrders = orders.filter(order => {
-    const matchesSearch = searchQuery === '' || 
+    const matchesSearch = searchQuery === '' ||
       order.orderId.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.senderDetails.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.receiverDetails.name.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const matchesStatus = statusFilter === 'All Status' || order.status === statusFilter;
-    
+
     return matchesSearch && matchesStatus;
   });
 
@@ -217,7 +253,7 @@ const OrdersPage = () => {
           <p className="text-gray-600 mt-1">Manage and track all your logistics orders</p>
         </div>
         <div className="flex items-center space-x-3">
-          <button 
+          <button
             onClick={handleRefresh}
             disabled={refreshing}
             className="flex items-center space-x-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
@@ -301,7 +337,7 @@ const OrdersPage = () => {
             </button>
           </div>
           <div className="flex items-center space-x-2">
-            <select 
+            <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -455,6 +491,20 @@ const OrdersPage = () => {
                           <button className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition-colors">
                             <Trash2 className="w-4 h-4" />
                           </button>
+
+                          {/* Force Cancel Action */}
+                          {['ARRIVED', 'DRIVER_ARRIVED', 'STARTED', 'IN_TRANSIT'].includes(order.status) && (
+                            <button
+                              onClick={() => {
+                                setSelectedOrderForCancel(order);
+                                setIsCancelDialogOpen(true);
+                              }}
+                              title="Force Cancel Order"
+                              className="text-orange-600 hover:text-orange-900 p-1 rounded hover:bg-orange-50 transition-colors"
+                            >
+                              <Ban className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -478,7 +528,7 @@ const OrdersPage = () => {
               </span>
             </div>
             <div className="flex items-center space-x-2">
-              <button 
+              <button
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={!pagination.isPrevPage || loading}
                 className="flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -486,31 +536,30 @@ const OrdersPage = () => {
                 <ChevronLeft className="w-4 h-4 mr-1" />
                 Previous
               </button>
-              
+
               {/* Page Numbers */}
               <div className="flex items-center space-x-1">
                 {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
                   let pageNum = currentPage - 2 + i;
                   if (pageNum < 1) pageNum = i + 1;
                   if (pageNum > pagination.totalPages) return null;
-                  
+
                   return (
                     <button
                       key={pageNum}
                       onClick={() => handlePageChange(pageNum)}
-                      className={`px-3 py-2 text-sm rounded-md transition-colors ${
-                        pageNum === currentPage
-                          ? 'bg-blue-600 text-white'
-                          : 'border border-gray-300 hover:bg-gray-50'
-                      }`}
+                      className={`px-3 py-2 text-sm rounded-md transition-colors ${pageNum === currentPage
+                        ? 'bg-blue-600 text-white'
+                        : 'border border-gray-300 hover:bg-gray-50'
+                        }`}
                     >
                       {pageNum}
                     </button>
                   );
                 }).filter(Boolean)}
               </div>
-              
-              <button 
+
+              <button
                 onClick={() => handlePageChange(currentPage + 1)}
                 disabled={!pagination.isNextPage || loading}
                 className="flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -522,6 +571,48 @@ const OrdersPage = () => {
           </div>
         </div>
       )}
+
+      {/* Force Cancel Dialog */}
+      <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Force Cancel Ride</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to cancel Order <strong>{selectedOrderForCancel?.orderId}</strong>? This action will set the driver available again and initiate refunds if prepaid.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Reason for Cancellation
+            </label>
+            <input
+              type="text"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              placeholder="e.g. User Unreachable, Vehicle Breakdown"
+            />
+          </div>
+
+          <DialogFooter>
+            <button
+              onClick={() => setIsCancelDialogOpen(false)}
+              disabled={isCancelling}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Close
+            </button>
+            <button
+              onClick={handleForceCancel}
+              disabled={isCancelling}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors flex items-center disabled:opacity-50"
+            >
+              {isCancelling ? 'Cancelling...' : 'Confirm Force Cancel'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

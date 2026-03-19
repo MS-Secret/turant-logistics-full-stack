@@ -1,9 +1,10 @@
 import Request from "@/config/apiConfig";
 
-const GetPendingWithdrawals = async () =>
+const GetWithdrawals = async (status?: string) =>
     Request({
         method: "GET",
-        url: "wallet/admin/pending",
+        url: "wallet/admin/requests",
+        params: status ? { status } : {},
         secure: true,
     });
 
@@ -24,7 +25,7 @@ const RejectWithdrawal = async (requestId: string, adminNote: string) =>
     });
 
 const WithdrawalsService = {
-    GetPendingWithdrawals,
+    GetWithdrawals,
     ApproveWithdrawal,
     RejectWithdrawal,
 };

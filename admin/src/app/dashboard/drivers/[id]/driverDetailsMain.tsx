@@ -23,7 +23,9 @@ import {
   Calendar,
   TrendingUp,
   MapPin as LocationIcon,
+  Ban
 } from "lucide-react";
+import { toast } from 'react-hot-toast';
 import DriversService from "@/services/drivers";
 
 interface DriverDetailsMainProps {
@@ -178,6 +180,7 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>("details");
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -264,6 +267,32 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
     } catch (error) {
       console.error("Error updating KYC status:", error);
       setError("An error occurred while updating KYC status");
+    }
+  };
+
+  const handleToggleBlock = async () => {
+    if (!driver) return;
+    const isBlocking = driver.isActive;
+    const confirmMsg = isBlocking 
+      ? `Are you sure you want to block this driver?`
+      : `Are you sure you want to unblock this driver?`;
+    
+    if (confirm(confirmMsg)) {
+      try {
+        const response = isBlocking 
+          ? await DriversService.BlockDriver(driver.userId)
+          : await DriversService.UnblockDriver(driver.userId);
+        
+        if (response?.status === 200) {
+          toast.success(`Driver ${isBlocking ? 'blocked' : 'unblocked'} successfully`);
+          fetchDriverDetails(); // Refresh
+        } else {
+          toast.error(`Failed to ${isBlocking ? 'block' : 'unblock'} driver`);
+        }
+      } catch (error) {
+        console.error("Error toggling block status:", error);
+        toast.error("An error occurred");
+      }
     }
   };
 
@@ -476,11 +505,11 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
                 Aadhaar Card (Front)
               </label>
               {driver?.kyc?.owner.aadhaarCard.frontImageUrl ? (
-                <div className="mt-2">
+                <div className="mt-2" onClick={() => setSelectedImage(driver?.kyc?.owner?.aadhaarCard?.frontImageUrl || null)}>
                   <img
                     src={driver.kyc.owner.aadhaarCard.frontImageUrl}
                     alt="Aadhaar Front"
-                    className="w-full h-32 object-cover rounded-xl border border-gray-200"
+                    className="w-full h-32 object-cover rounded-xl border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
                   />
                 </div>
               ) : (
@@ -492,11 +521,11 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
                 Aadhaar Card (Back)
               </label>
               {driver?.kyc?.owner.aadhaarCard.backImageUrl ? (
-                <div className="mt-2">
+                <div className="mt-2" onClick={() => setSelectedImage(driver?.kyc?.owner?.aadhaarCard?.backImageUrl || null)}>
                   <img
                     src={driver.kyc.owner.aadhaarCard.backImageUrl}
                     alt="Aadhaar Back"
-                    className="w-full h-32 object-cover rounded-xl border border-gray-200"
+                    className="w-full h-32 object-cover rounded-xl border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
                   />
                 </div>
               ) : (
@@ -510,11 +539,11 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
                 PAN Card
               </label>
               {driver?.kyc?.owner.panCard.imageUrl ? (
-                <div className="mt-2">
+                <div className="mt-2" onClick={() => setSelectedImage(driver?.kyc?.owner?.panCard?.imageUrl || null)}>
                   <img
                     src={driver.kyc.owner.panCard.imageUrl}
                     alt="PAN Card"
-                    className="w-full h-32 object-cover rounded-xl border border-gray-200"
+                    className="w-full h-32 object-cover rounded-xl border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
                   />
                 </div>
               ) : (
@@ -526,11 +555,11 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
                 Owner Photo
               </label>
               {driver?.kyc?.owner.ownerPhotoUrl ? (
-                <div className="mt-2">
+                <div className="mt-2" onClick={() => setSelectedImage(driver?.kyc?.owner?.ownerPhotoUrl || null)}>
                   <img
                     src={driver.kyc.owner.ownerPhotoUrl}
                     alt="Owner Photo"
-                    className="w-full h-32 object-cover rounded-xl border border-gray-200"
+                    className="w-full h-32 object-cover rounded-xl border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
                   />
                 </div>
               ) : (
@@ -605,11 +634,11 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
                 Vehicle RC
               </label>
               {driver?.kyc?.vehicle.vehicleRCImgUrl ? (
-                <div className="mt-2">
+                <div className="mt-2" onClick={() => setSelectedImage(driver?.kyc?.vehicle?.vehicleRCImgUrl || null)}>
                   <img
                     src={driver.kyc.vehicle.vehicleRCImgUrl}
                     alt="Vehicle RC"
-                    className="w-full h-32 object-cover rounded-xl border border-gray-200"
+                    className="w-full h-32 object-cover rounded-xl border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
                   />
                 </div>
               ) : (
@@ -656,15 +685,45 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
               Approve
             </button>
             <button
-              onClick={() => handleUpdateKycStatus("rejected")}
-              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-xl transition-colors border border-red-600"
-              disabled={driver?.kycStatus === "rejected"}
-            >
-              Reject
-            </button>
-          </div>
-        </div>
-      </div>
+               onClick={() => handleUpdateKycStatus("rejected")}
+               className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-xl transition-colors border border-red-600"
+               disabled={driver?.kycStatus === "rejected"}
+             >
+               Reject
+             </button>
+           </div>
+         </div>
+       </div>
+ 
+       {/* Account Suspension Management */}
+       <div className="bg-white rounded-2xl border border-gray-200 p-6 mt-6">
+         <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+           <Ban className="w-5 h-5 text-orange-500" />
+           Account Access Management
+         </h3>
+         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+           <div>
+             <p className="text-sm text-gray-600">Current Login Access:</p>
+             <span
+               className={`inline-flex px-3 py-1 text-sm font-medium rounded-full mt-1 ${driver?.isActive
+                 ? "bg-green-100 text-green-800 border-green-200"
+                 : "bg-red-100 text-red-800 border-red-200"
+                 }`}
+             >
+               {driver?.isActive ? "Active (Allowed)" : "Suspended (Blocked)"}
+             </span>
+           </div>
+           <button
+             onClick={handleToggleBlock}
+             className={`px-6 py-2 text-white text-sm font-medium rounded-xl transition-all shadow-sm ${driver?.isActive
+               ? "bg-orange-500 hover:bg-orange-600 border border-orange-600"
+               : "bg-blue-600 hover:bg-blue-700 border border-blue-700"
+               }`}
+           >
+             {driver?.isActive ? "Suspend Account" : "Restore Access"}
+           </button>
+         </div>
+       </div>
 
       {/* Driver Documents */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6">
@@ -700,11 +759,11 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
               Driving License
             </label>
             {driver?.kyc?.driver.licenseImageUrl ? (
-              <div className="mt-2">
+              <div className="mt-2" onClick={() => setSelectedImage(driver?.kyc?.driver?.licenseImageUrl || null)}>
                 <img
                   src={driver.kyc.driver.licenseImageUrl}
                   alt="Driving License"
-                  className="w-full h-32 object-cover rounded-xl border border-gray-200"
+                  className="w-full h-32 object-cover rounded-xl border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
                 />
               </div>
             ) : (
@@ -748,11 +807,11 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
               Bank Passbook / Cheque
             </label>
             {driver?.kyc?.driver.bankDetails?.passbookImageUrl ? (
-              <div className="mt-2">
+              <div className="mt-2" onClick={() => setSelectedImage(driver?.kyc?.driver?.bankDetails?.passbookImageUrl || null)}>
                 <img
                   src={driver.kyc.driver.bankDetails.passbookImageUrl}
                   alt="Bank Passbook"
-                  className="w-full h-32 object-cover rounded-xl border border-gray-200"
+                  className="w-full h-32 object-cover rounded-xl border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
                 />
               </div>
             ) : (
@@ -1001,6 +1060,29 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
         {activeTab === "orders" && <OrdersTab />}
         {activeTab === "payments" && <PaymentsTab />}
       </div>
+
+      {/* Fullscreen Image Modal */}
+      {selectedImage && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div className="relative max-w-5xl w-full h-[90vh] flex items-center justify-center">
+            <button 
+              className="absolute top-4 right-4 bg-white/20 hover:bg-white/40 rounded-full p-2 text-white transition-colors z-10"
+              onClick={() => setSelectedImage(null)}
+            >
+              <XCircle className="w-8 h-8" />
+            </button>
+            <img 
+              src={selectedImage} 
+              alt="Document Full View" 
+              className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()} // Prevent closing when clicking the image itself
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
