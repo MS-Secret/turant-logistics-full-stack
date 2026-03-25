@@ -38,12 +38,20 @@ const UnblockDriver = async (userId: string) =>
     secure: true,
   });
 
+const DeleteDriver = async (userId: string) =>
+  Request({
+    method: "DELETE",
+    url: `auth/driver/delete/${userId}`,
+    secure: true,
+  });
+
 const DriversService = {
   GetDrivers,
   GetDriverById,
   UpdateDriverKycStatus,
   BlockDriver,
   UnblockDriver,
+  DeleteDriver,
 };
 
 export default DriversService;

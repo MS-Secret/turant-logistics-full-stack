@@ -23,8 +23,15 @@ const ForceCancelOrder = async (orderId: string, reason: string) => Request({
     }
 })
 
+const GetOrderById = async (orderId: string) => Request({
+    url: `orders/${orderId}`,
+    method: 'GET',
+    secure: true
+})
+
 const OrderServices = {
     GetAllOrders,
-    ForceCancelOrder
+    ForceCancelOrder,
+    GetOrderById
 }
 export default OrderServices;

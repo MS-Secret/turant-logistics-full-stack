@@ -29,6 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import Link from 'next/link';
 
 // TypeScript interfaces for the order data
 interface Location {
@@ -168,7 +169,9 @@ const OrdersPage = () => {
         case 'CREATED': stats.created++; break;
         case 'DRIVER_ACCEPTED': stats.driverAccepted++; break;
         case 'IN_TRANSIT': stats.inTransit++; break;
-        case 'DELIVERED': stats.delivered++; break;
+        case 'DELIVERED': 
+        case 'COMPLETED':
+          stats.delivered++; break;
         case 'CANCELLED': stats.cancelled++; break;
       }
     });
@@ -482,15 +485,13 @@ const OrdersPage = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center space-x-2">
-                          <button className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50 transition-colors">
+                          <Link 
+                            href={`/dashboard/orders/${order.orderId}`}
+                            className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50 transition-colors"
+                            title="View Details"
+                          >
                             <Eye className="w-4 h-4" />
-                          </button>
-                          <button className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50 transition-colors">
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition-colors">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          </Link>
 
                           {/* Force Cancel Action */}
                           {['ARRIVED', 'DRIVER_ARRIVED', 'STARTED', 'IN_TRANSIT'].includes(order.status) && (

@@ -20,7 +20,8 @@ import {
   ChevronRight,
   LogOut,
   User,
-  Speaker
+  Speaker,
+  BanknoteArrowDown
 } from 'lucide-react'
 
 
@@ -62,7 +63,7 @@ const Sidebar = () => {
     },
     {
       title: 'Withdrawals',
-      icon: IndianRupee,
+      icon: BanknoteArrowDown,
       href: '/dashboard/withdrawals',
       color: 'text-teal-500'
     },
@@ -78,30 +79,14 @@ const Sidebar = () => {
       href: '/dashboard/tracking',
       color: 'text-red-500'
     },
-    {
-      title: 'Schedule',
-      icon: Calendar,
-      href: '/dashboard/schedule',
-      color: 'text-indigo-500'
-    },
-    {
-      title: 'Reports',
-      icon: FileText,
-      href: '/dashboard/reports',
-      color: 'text-teal-500'
-    },
+   
     {
       title: 'Staff',
       icon: UserCheck,
       href: '/dashboard/staff',
       color: 'text-cyan-500'
     },
-    {
-      title: 'Notifications',
-      icon: Bell,
-      href: '/dashboard/notifications',
-      color: 'text-amber-500'
-    },
+   
     {
       title: 'Marketing',
       icon: Speaker,

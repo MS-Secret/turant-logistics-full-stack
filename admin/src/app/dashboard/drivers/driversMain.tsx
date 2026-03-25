@@ -181,6 +181,27 @@ const DriversPage = () => {
     }
   }
 
+  const handleDeleteDriver = async (e: React.MouseEvent, driver: Driver) => {
+    e.stopPropagation();
+    const confirmMsg = `WARNING: Are you sure you want to PERMANENTLY delete ${driver.user.fullName || driver.user.username}? This action cannot be undone and will wipe all their records so they can redo KYC.`;
+    
+    if (confirm(confirmMsg)) {
+      try {
+        const response = await DriversService.DeleteDriver(driver.userId);
+        
+        if (response?.status === 200) {
+          toast.success('Driver permanently deleted');
+          handleGetDrivers(); // Refresh list
+        } else {
+          toast.error('Failed to delete driver');
+        }
+      } catch (error) {
+        console.error("Error deleting driver:", error);
+        toast.error("An error occurred");
+      }
+    }
+  }
+
   useEffect(()=>{
     handleGetDrivers();
   },[page, pageSize])
@@ -364,7 +385,7 @@ const DriversPage = () => {
                   >
                     <Ban className="w-4 h-4" />
                   </button>
-                  <button className="text-red-600 hover:text-red-900 p-1 rounded">
+                  <button onClick={(e) => handleDeleteDriver(e, driver)} className="text-red-600 hover:text-red-900 p-1 rounded">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>

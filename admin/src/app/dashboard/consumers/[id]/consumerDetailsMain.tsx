@@ -84,6 +84,12 @@ const ConsumerDetailsMain = ({consumerId}: {consumerId: string}) => {
                                         <span className="text-gray-600">Country:</span>
                                         <span className="text-gray-900">{consumerDetails.user.profile.address.country}</span>
                                     </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-gray-600">State / City:</span>
+                                        <span className="text-gray-900">
+                                            {consumerDetails.user.profile.address.state || consumerDetails.user.profile.address.city || 'N/A'}
+                                        </span>
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>

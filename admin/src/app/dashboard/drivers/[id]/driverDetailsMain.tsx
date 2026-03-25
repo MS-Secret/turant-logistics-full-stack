@@ -23,7 +23,8 @@ import {
   Calendar,
   TrendingUp,
   MapPin as LocationIcon,
-  Ban
+  Ban,
+  Trash2
 } from "lucide-react";
 import { toast } from 'react-hot-toast';
 import DriversService from "@/services/drivers";
@@ -291,6 +292,27 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
         }
       } catch (error) {
         console.error("Error toggling block status:", error);
+        toast.error("An error occurred");
+      }
+    }
+  };
+  
+  const handleDeleteDriver = async () => {
+    if (!driver) return;
+    const confirmMsg = `WARNING: Are you sure you want to PERMANENTLY delete ${driver.user.fullName || driver.user.username}? This action cannot be undone and will wipe all their records so they can redo KYC.`;
+    
+    if (confirm(confirmMsg)) {
+      try {
+        const response = await DriversService.DeleteDriver(driver.userId);
+        
+        if (response?.status === 200) {
+          toast.success('Driver permanently deleted');
+          router.push("/dashboard/drivers"); // Redirect back to list
+        } else {
+          toast.error('Failed to delete driver');
+        }
+      } catch (error) {
+        console.error("Error deleting driver:", error);
         toast.error("An error occurred");
       }
     }
@@ -713,15 +735,24 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
                {driver?.isActive ? "Active (Allowed)" : "Suspended (Blocked)"}
              </span>
            </div>
-           <button
-             onClick={handleToggleBlock}
-             className={`px-6 py-2 text-white text-sm font-medium rounded-xl transition-all shadow-sm ${driver?.isActive
-               ? "bg-orange-500 hover:bg-orange-600 border border-orange-600"
-               : "bg-blue-600 hover:bg-blue-700 border border-blue-700"
-               }`}
-           >
-             {driver?.isActive ? "Suspend Account" : "Restore Access"}
-           </button>
+           <div className="flex gap-2">
+             <button
+               onClick={handleToggleBlock}
+               className={`px-6 py-2 text-white text-sm font-medium rounded-xl transition-all shadow-sm ${driver?.isActive
+                 ? "bg-orange-500 hover:bg-orange-600 border border-orange-600"
+                 : "bg-blue-600 hover:bg-blue-700 border border-blue-700"
+                 }`}
+             >
+               {driver?.isActive ? "Suspend Account" : "Restore Access"}
+             </button>
+             <button
+               onClick={handleDeleteDriver}
+               className="px-6 py-2 bg-red-500 hover:bg-red-600 border border-red-600 text-white text-sm font-medium rounded-xl transition-all shadow-sm flex items-center gap-2"
+             >
+               <Trash2 className="w-4 h-4" />
+               Delete Account
+             </button>
+           </div>
          </div>
        </div>
 

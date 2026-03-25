@@ -1,7 +1,7 @@
 'use client'
 import React, { useEffect, useState } from 'react'
 import {
-    DollarSign,
+    IndianRupee,
     Search,
     CheckCircle,
     XCircle,
@@ -143,7 +143,7 @@ const WithdrawalsPage = () => {
         { id: 'PENDING', label: 'Pending', icon: Clock, color: 'text-yellow-500' },
         { id: 'APPROVED', label: 'Approved', icon: CheckCircle, color: 'text-green-500' },
         { id: 'REJECTED', label: 'Rejected', icon: XCircle, color: 'text-red-500' },
-        { id: 'ALL', label: 'All Requests', icon: DollarSign, color: 'text-blue-500' },
+        { id: 'ALL', label: 'All Requests', icon: IndianRupee, color: 'text-blue-500' },
     ];
 
     return (
@@ -207,7 +207,7 @@ const WithdrawalsPage = () => {
                                 ₹{filteredRequests.reduce((sum, req) => sum + req.amount, 0).toFixed(2)}
                             </p>
                         </div>
-                        <DollarSign className="w-8 h-8 text-blue-500" />
+                        <IndianRupee className="w-8 h-8 text-blue-500" />
                     </div>
                 </div>
             </div>
