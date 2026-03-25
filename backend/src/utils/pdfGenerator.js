@@ -1,9 +1,18 @@
 const PDFDocument = require('pdfkit');
 const { cloudinary } = require('../config/cloudinaryConfig');
+const User = require('../models/user.model');
+const fs = require('fs');
+const path = require('path');
 
 const generateAndUploadInvoice = async (orderDetails) => {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
         try {
+            let consumerCity = orderDetails.city;
+            if (!consumerCity && orderDetails.userId) {
+                const user = await User.findOne({ userId: orderDetails.userId });
+                consumerCity = user?.profile?.address?.city || user?.profile?.address?.state;
+            }
+
             const doc = new PDFDocument({ margin: 50, size: 'A4' });
 
             // Create a write stream to Cloudinary
@@ -23,6 +32,15 @@ const generateAndUploadInvoice = async (orderDetails) => {
             doc.pipe(uploadStream);
 
             // --- HEADER SECTION ---
+            const logoPath = path.join(__dirname, '../../uploads/logo.png');
+            if (fs.existsSync(logoPath)) {
+                // A4 width is ~595. Center a 100px wide logo: (595 - 100) / 2 = 247.5
+                doc.image(logoPath, 247.5, doc.y, { width: 100 });
+                doc.y += 85; // Shift Y down to make room for the logo
+            } else {
+                doc.moveDown(1);
+            }
+
             doc.fillColor('#333333')
                 .font('Helvetica-Bold')
                 .fontSize(20)
@@ -99,7 +117,7 @@ const generateAndUploadInvoice = async (orderDetails) => {
             let currentY = drawSectionHeader('BOOKING DETAILS', doc.y);
             
             const bookingItems = [
-                { label: 'City:', value: orderDetails.city || 'N/A' },
+                { label: 'City:', value: consumerCity || 'N/A' },
                 { label: 'Vehicle:', value: `${orderDetails.vehicleDetails?.vehicleName || 'N/A'} (${orderDetails.vehicleDetails?.vehicleType || 'N/A'})` },
                 { label: 'Weight:', value: `${orderDetails.packageDetails?.weight || 'N/A'} ${orderDetails.packageDetails?.weightUnit || 'kg'}` },
                 { label: 'Distance:', value: `${orderDetails.distance || 0} km` }

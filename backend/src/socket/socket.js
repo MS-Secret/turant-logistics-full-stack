@@ -146,7 +146,7 @@ const initializeSocket = (server) => {
 
           if (normalizedReq.vehicleType && normalizedKyc.vehicleType !== normalizedReq.vehicleType) continue;
           if (normalizedReq.vehicleBodyType && normalizedKyc.vehicleBodyType !== normalizedReq.vehicleBodyType) continue;
-          if (normalizedReq.vehicleFuelType && normalizedKyc.vehicleFuelType !== normalizedReq.vehicleFuelType) continue;
+          // if (normalizedReq.vehicleFuelType && normalizedKyc.vehicleFuelType !== normalizedReq.vehicleFuelType) continue;
 
           // Check distance
           const distance = calculateDistance(

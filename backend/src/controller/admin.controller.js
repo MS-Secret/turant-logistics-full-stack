@@ -1,5 +1,6 @@
 const Driver = require("../models/driver.model");
 const User = require("../models/user.model");
+const Order = require("../models/order.model");
 
 const GetActiveDriversLocations = async (req, res) => {
   try {
@@ -48,6 +49,61 @@ const GetActiveDriversLocations = async (req, res) => {
   }
 };
 
+const GetDashboardStats = async (req, res) => {
+  try {
+    const totalOrders = await Order.countDocuments();
+    
+    // Calculate total revenue from completed/delivered orders
+    const completedOrders = await Order.find({ status: { $in: ["DELIVERED", "COMPLETED"] } }).select("pricing.totalAmount");
+    const totalRevenue = completedOrders.reduce((acc, order) => {
+      return acc + (order.pricing && order.pricing.totalAmount ? order.pricing.totalAmount : 0);
+    }, 0);
+
+    // Active Drivers
+    const activeDrivers = await Driver.countDocuments({
+      workingStatus: { $in: ["ONLINE", "BUSY"] },
+    });
+
+    // Total Consumers
+    const totalConsumers = await User.countDocuments({ role: "USER" });
+
+    // Recent 5 Orders
+    const recentOrders = await Order.find()
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select("orderId senderDetails.name status pricing.totalAmount createdAt");
+
+    const formattedRecentOrders = recentOrders.map(order => ({
+      id: order.orderId || "N/A",
+      customer: order.senderDetails?.name || "Unknown User",
+      status: order.status || "CREATED",
+      amount: `₹${order.pricing?.totalAmount || 0}`,
+      createdAt: order.createdAt
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        stats: {
+          totalOrders,
+          totalRevenue,
+          activeDrivers,
+          totalConsumers,
+        },
+        recentOrders: formattedRecentOrders
+      }
+    });
+
+  } catch (error) {
+    console.log("Error in GetDashboardStats:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
 module.exports = {
   GetActiveDriversLocations,
+  GetDashboardStats
 };

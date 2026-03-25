@@ -411,41 +411,8 @@ const verifyOTP = async (identifier, otp, purpose, identifierType, role) => {
 
     let user = await User.findOne(query);
 
-    // If user exists with matching phone and role, proceed with login
-    if (user) {
-      if (identifierType === "PHONE") {
-        await User.updateOne(
-          { phone: identifier, role: expectedRole },
-          {
-            phoneVerified: true,
-            status: "ACTIVE",
-          }
-        );
-      } else if (identifierType === "EMAIL") {
-        await User.updateOne(
-          { email: identifier, role: expectedRole },
-          {
-            emailVerified: true,
-            status: "ACTIVE",
-          }
-        );
-      }
-
-      // Ensure role-specific profile exists
-      if (expectedRole === "DRIVER") {
-        const driverProfile = await Driver.findOne({ userId: user.userId });
-        if (!driverProfile) {
-          console.log("Creating missing Driver profile for user...");
-          await createRoleSpecificProfile(user);
-        }
-      } else if (expectedRole === "USER") {
-        const consumerProfile = await Consumer.findOne({ userId: user.userId });
-        if (!consumerProfile) {
-          console.log("Creating missing Consumer profile for user...");
-          await createRoleSpecificProfile(user);
-        }
-      }
-    } else {
+    // If user doesn't exist, perform implicit registration
+    if (!user) {
       // Check if phone/email exists with different role
       let existingUserQuery = {};
       if (identifierType === 'PHONE') {
@@ -488,13 +455,45 @@ const verifyOTP = async (identifier, otp, purpose, identifierType, role) => {
       }
     }
 
+    // Now we definitely have a user (either existing or newly created)
+    // Mark as verified and active
+    if (identifierType === "PHONE") {
+      await User.updateOne(
+        { _id: user._id },
+        {
+          phoneVerified: true,
+          status: "ACTIVE",
+        }
+      );
+    } else if (identifierType === "EMAIL") {
+      await User.updateOne(
+        { _id: user._id },
+        {
+          emailVerified: true,
+          status: "ACTIVE",
+        }
+      );
+    }
+
+    // Ensure role-specific profile exists
+    if (expectedRole === "DRIVER") {
+      const driverProfile = await Driver.findOne({ userId: user.userId });
+      if (!driverProfile) {
+        console.log("Creating missing Driver profile for user...");
+        await createRoleSpecificProfile(user);
+      }
+    } else if (expectedRole === "USER") {
+      const consumerProfile = await Consumer.findOne({ userId: user.userId });
+      if (!consumerProfile) {
+        console.log("Creating missing Consumer profile for user...");
+        await createRoleSpecificProfile(user);
+      }
+    }
+
     // CRITICAL FIX: Use the user we found/created (with correct role) instead of calling login with identifier
     // This ensures we login with the correct role user, not any other user with same phone
     let verifyResult;
     // Call login with identifier BUT also pass role to ensure correct user is found
-    // OR better: Use userId directly since we already have the correct user
-    // Since login() doesn't accept userId, we'll modify it to filter by role when role is provided
-    // For now, let's refetch user with role filter and then call login
     verifyResult = await login(identifier, "123456", {}, expectedRole);
     console.log("verifyResult:", verifyResult);
 

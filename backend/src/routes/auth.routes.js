@@ -23,7 +23,8 @@ const {
   handleSendRideRequest,
   handleUpdateCurrentLocation,
   handleBlockDriver,
-  handleUnblockDriver
+  handleUnblockDriver,
+  handleDeleteDriver
 } = require("../controller/driver.controller");
 const {
   handleGetConsumerList,
@@ -137,6 +138,7 @@ router.get("/driver/:driverId", verifyToken, handleGetDriverDetails);
 router.post("/driver/kyc/:userId", verifyToken, handleUpdateDriverKycStatus);
 router.post("/driver/block/:userId", verifyToken, handleBlockDriver);
 router.post("/driver/unblock/:userId", verifyToken, handleUnblockDriver);
+router.delete("/driver/delete/:userId", verifyToken, handleDeleteDriver);
 
 // ==================== Consumer HANDLING ====================
 router.get("/consumer/all", verifyToken, handleGetConsumerList);

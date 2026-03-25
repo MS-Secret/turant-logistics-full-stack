@@ -1,6 +1,7 @@
 const { sendToMultipleDevices } = require("../config/firebase.config");
 const Driver = require("../models/driver.model");
 const User = require("../models/user.model");
+const Wallet = require("../models/wallet.model");
 const { filterDriversByRadius } = require("../utils/locationUtils");
 const { UploadToCloudinary } = require("../config/cloudinaryConfig");
 const KYCModel = require("../models/kyc.model");
@@ -371,10 +372,10 @@ const GetNearbyDrivers = async (payload) => {
           return false;
         }
 
-        // Match fuel type if requested
-        if (normalizedReq.vehicleFuelType && normalizedKyc.vehicleFuelType !== normalizedReq.vehicleFuelType) {
-          return false;
-        }
+        // Match fuel type if requested - COMMMENTED OUT TO ALLOW ANY FUEL TYPE
+        // if (normalizedReq.vehicleFuelType && normalizedKyc.vehicleFuelType !== normalizedReq.vehicleFuelType) {
+        //   return false;
+        // }
 
         return true;
       });
@@ -960,6 +961,40 @@ const UnblockDriver = async ({ userId }) => {
   }
 };
 
+const DeleteDriver = async ({ userId }) => {
+  try {
+    if (!userId) {
+      return { success: false, message: "UserId is required" };
+    }
+
+    // 1. Delete Driver model
+    const driver = await Driver.findOneAndDelete({ userId });
+
+    // 2. Delete User model
+    const user = await User.findOneAndDelete({ userId });
+
+    // 3. Delete Wallet associated with this driver to prevent orphans
+    if (driver) {
+      await Wallet.deleteMany({ driver: driver._id });
+    }
+
+    // 4. Delete KYC records so they can restart fresh
+    await KYCModel.findOneAndDelete({ userId });
+
+    if (!driver && !user) {
+      return { success: false, message: "Driver not found" };
+    }
+
+    return {
+      success: true,
+      message: "Driver permanently deleted"
+    };
+  } catch (error) {
+    console.error("Error deleting driver:", error);
+    return { success: false, message: error.message };
+  }
+};
+
 module.exports = {
   GetDriverList,
   GetDriverDetails,
@@ -975,5 +1010,6 @@ module.exports = {
   SendRideRequestNotification,
   AcceptRideRequest,
   BlockDriver,
-  UnblockDriver
+  UnblockDriver,
+  DeleteDriver
 };

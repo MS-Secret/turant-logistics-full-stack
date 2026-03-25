@@ -389,6 +389,31 @@ const handleUnblockDriver = async (req, res) => {
   }
 };
 
+const handleDeleteDriver = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(httpStatusCode.BAD_REQUEST).json({
+        success: false,
+        message: "UserId is required"
+      });
+    }
+    const result = await driverService.DeleteDriver({ userId });
+    if (result.success) {
+      return res.status(httpStatusCode.OK).json(result);
+    } else {
+      return res.status(httpStatusCode.BAD_REQUEST).json(result);
+    }
+  } catch (error) {
+    console.error("Error in handleDeleteDriver:", error);
+    return res.status(httpStatusCode.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   handleGetDriverList,
   handleGetDriverDetails,
@@ -402,5 +427,6 @@ module.exports = {
   handleResetDailyEarnings,
   CreateDriverDetails,
   handleBlockDriver,
-  handleUnblockDriver
+  handleUnblockDriver,
+  handleDeleteDriver
 };
