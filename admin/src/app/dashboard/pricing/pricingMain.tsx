@@ -13,6 +13,7 @@ import {
   Package,
   Clock,
   TrendingUp,
+  IndianRupee
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import CreatePricing from "./createPricing";
@@ -107,7 +108,7 @@ const PricingMain = () => {
       value: (pricingData?.length || 0).toString(),
       change: "+3",
       changeType: "positive",
-      icon: DollarSign,
+      icon: IndianRupee,
       color: "bg-blue-500",
     },
     {

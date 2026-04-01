@@ -10,7 +10,8 @@ import {
   MapPin,
   Clock,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  IndianRupee
 } from 'lucide-react'
 import DashboardServices from '@/services/dashboard'
 
@@ -75,7 +76,7 @@ const Dashboard = () => {
       value: `₹${statsData.totalRevenue.toLocaleString()}`,
       change: '+8%',
       changeType: 'positive',
-      icon: DollarSign,
+      icon: IndianRupee,
       color: 'bg-yellow-500'
     }
   ]
