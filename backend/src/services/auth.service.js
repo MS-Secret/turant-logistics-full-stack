@@ -14,7 +14,7 @@ const { sendSMS } = require("./smsService/sms.processor");
 const { GetKycDetails } = require("./kyc.service");
 
 // Register user
-const register = async (userData) => {
+const register = async (userData, skipOTP = false) => {
   const { email, phone, role = "USER", userName, password } = userData;
 
   // Check if user already exists with same phone/email AND same role
@@ -86,8 +86,10 @@ const register = async (userData) => {
   // Create role-specific profile
   await createRoleSpecificProfile(user);
 
-  // Send verification OTP
-  await sendVerificationOTP(phone, "REGISTRATION", user);
+  // Send verification OTP (skip if getting implicitly registered during login OTP flow)
+  if (!skipOTP) {
+    await sendVerificationOTP(phone, "REGISTRATION", user);
+  }
 
   return {
     userId: user.userId,
@@ -442,7 +444,8 @@ const verifyOTP = async (identifier, otp, purpose, identifierType, role) => {
         password: "123456", // Default password since we use OTP
       };
 
-      const registerResult = await register(userData);
+      // Pass skipOTP = true since they are already verifying their login OTP
+      const registerResult = await register(userData, true);
       if (!registerResult) {
         throw new Error("Failed to register new user");
       }
@@ -624,7 +627,17 @@ const updateUserProfile = async (updateData, profileImageFile) => {
     if (!user.profile) user.profile = {};
     if (!user.profile.address) user.profile.address = {};
 
-    if (username) user.username = username;
+    if (username) {
+      user.username = username;
+      // Sync with profile names if they are not specifically provided
+      if (!firstName && (!user.profile.firstName || user.profile.firstName === 'undefined')) {
+        const nameParts = username.trim().split(/\s+/);
+        user.profile.firstName = nameParts[0];
+        if (nameParts.length > 1 && !lastName && (!user.profile.lastName || user.profile.lastName === 'undefined')) {
+          user.profile.lastName = nameParts.slice(1).join(' ');
+        }
+      }
+    }
 
     // Allow adding/updating email from Edit Profile (optional; user may not have email at register)
     if (emailInput !== undefined && emailInput !== null) {

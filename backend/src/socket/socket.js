@@ -734,10 +734,11 @@ const initializeSocket = (server) => {
             // Check if we can find consumer socket.
             // If not, push notification should handle it (which service likely does).
             // But for real-time update:
-            io.emit("ride_completed", { // Broadcasting to all for now, or better:
+            io.to(`user_${order.userId}`).emit("ride_completed", {
               orderId,
               status: 'COMPLETED',
-              message: "Your ride has been completed"
+              message: "Your ride has been completed",
+              data: result.data
             });
 
             // Better: emit to specific consumer if possible.

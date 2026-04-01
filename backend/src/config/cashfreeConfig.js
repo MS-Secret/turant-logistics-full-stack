@@ -2,7 +2,7 @@ const { Cashfree, CFEnvironment } = require('cashfree-pg');
 
 // Initialize Cashfree SDK
 const cashfreeConfig = {
-  environment: process.env.CASHFREE_ENVIRONMENT || 'SANDBOX', 
+  environment: process.env.CASHFREE_ENVIRONMENT || 'SANDBOX',
   clientId: process.env.CASHFREE_APP_ID || process.env.CASHFREE_CLIENT_ID,
   clientSecret: process.env.CASHFREE_SECRET_ID,
 };
@@ -14,8 +14,8 @@ if (!cashfreeConfig.clientId || !cashfreeConfig.clientSecret) {
 
 // Initialize Cashfree instance
 const cashfree = new Cashfree(
-  cashfreeConfig.environment === 'PRODUCTION' 
-    ? CFEnvironment.PRODUCTION 
+  cashfreeConfig.environment === 'PRODUCTION'
+    ? CFEnvironment.PRODUCTION
     : CFEnvironment.SANDBOX,
   cashfreeConfig.clientId,
   cashfreeConfig.clientSecret

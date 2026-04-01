@@ -223,6 +223,17 @@ const UpdateDriverWorkingStatus = async (payload) => {
       };
     }
 
+    if (status === 'ONLINE') {
+        const wallet = await Wallet.findOne({ driver: await Driver.findOne({ userId }).select('_id') });
+        if (wallet && wallet.balance < -500) {
+            return {
+                success: false,
+                message: "INSUFFICIENT_WALLET_BALANCE",
+                error: "Your wallet balance is below the minimum required limit (₹-500). Please recharge your wallet to go online."
+            };
+        }
+    }
+
     const driver = await Driver.findOneAndUpdate(
       { userId },
       {

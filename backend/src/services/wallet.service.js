@@ -202,8 +202,38 @@ const processOrderPayment = async (orderId) => {
         // Update Driver Total Earnings statistics
         driver.earnings.totalEarnings += riderEarning;
         driver.earnings.todayEarnings += riderEarning;
-        // Note: Weekly/Monthly reset logic would be external cron
-        await driver.save();
+        
+        // --- Negative Balance Limit Enforcement ---
+        if (wallet.balance < -500) {
+            driver.workingStatus = "OFFLINE";
+            await driver.save();
+
+            try {
+                // Notify driver that they were forced offline
+                const { sendToMultipleDevices } = require("../config/firebase.config");
+                const userDoc = await User.findOne({ userId: driverId });
+                if (userDoc && userDoc.metadata && userDoc.metadata.deviceInfo) {
+                    const fcmTokens = userDoc.metadata.deviceInfo
+                        .map(device => device.fcmToken)
+                        .filter(Boolean);
+                    if (fcmTokens.length > 0) {
+                        const payload = {
+                            title: "Offline: Low Balance ⚠️",
+                            body: "Your wallet balance is below ₹-500. You have been switched offline. Please recharge to accept new orders.",
+                            data: {
+                                type: "forced_offline_low_balance",
+                                timestamp: new Date().toISOString()
+                            }
+                        };
+                        await sendToMultipleDevices(fcmTokens, payload);
+                    }
+                }
+            } catch (notifyErr) {
+                console.error("Error sending low balance offline notification:", notifyErr);
+            }
+        } else {
+            await driver.save();
+        }
 
         return {
             success: true,
@@ -222,12 +252,39 @@ const processOrderPayment = async (orderId) => {
     }
 };
 
-const getHistory = async (driverId) => {
-    const wallet = await Wallet.findOne({ driver: driverId }).populate({
-        path: 'transactions.orderId',
-        select: 'orderId pricing'
-    });
-    return wallet ? wallet.transactions.reverse() : [];
+const getHistory = async (driverId, page = 1, limit = 10) => {
+    try {
+        const walletData = await Wallet.findOne({ driver: driverId });
+        if (!walletData) return { history: [], total: 0, page, limit, hasMore: false };
+
+        const total = walletData.transactions.length;
+        const skip = (page - 1) * limit;
+
+        // Slice from the end (assuming newest are at the end)
+        // If total is 100, page 1, skip 0, limit 10: slice [-10, 10]
+        // If total is 100, page 2, skip 10, limit 10: slice [-20, 10]
+        const sliceStart = -(skip + limit);
+        const sliceLimit = limit;
+
+        const wallet = await Wallet.findOne({ driver: driverId }, {
+            transactions: { $slice: [sliceStart, sliceLimit] }
+        }).populate({
+            path: 'transactions.orderId',
+            select: 'orderId pricing'
+        });
+
+        const history = wallet ? wallet.transactions.reverse() : [];
+        return {
+            history,
+            total,
+            page,
+            limit,
+            hasMore: skip + limit < total
+        };
+    } catch (error) {
+        console.error("Error in WalletService.getHistory:", error);
+        throw error;
+    }
 };
 
 const initiateRecharge = async (driverId, amount, driver) => {

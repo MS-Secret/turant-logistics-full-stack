@@ -189,8 +189,8 @@ const CreateTransaction = async (payload) => {
         await transactionsModel.findOneAndUpdate(
           { transactionId: transaction.transactionId },
           {
-            cashfreeOrderId: paymentResponse.data.order_id,
-            cashfreePaymentSessionId: paymentResponse.data.payment_session_id,
+            cashfreeOrderId: paymentResponse.data.orderId,
+            cashfreePaymentSessionId: paymentResponse.data.sessionId,
             status: "PENDING",
           }
         );
@@ -249,13 +249,13 @@ const CreateTransaction = async (payload) => {
     ) {
       responseData.paymentGateway = {
         provider: "Cashfree",
-        orderId: paymentResponse.data.order_id,
-        paymentSessionId: paymentResponse.data.payment_session_id,
-        orderStatus: paymentResponse.data.order_status,
+        orderId: paymentResponse.data.orderId,
+        paymentSessionId: paymentResponse.data.sessionId,
+        orderStatus: paymentResponse.data.orderStatus,
         // For mobile apps, you'll need these details to initialize payment
-        cftoken: paymentResponse.data.cf_order_id, // This might be different based on Cashfree response
-        orderAmount: paymentResponse.data.order_amount,
-        orderCurrency: paymentResponse.data.order_currency,
+        cftoken: paymentResponse.data.cftoken || paymentResponse.data.orderId, 
+        orderAmount: payment.amount,
+        orderCurrency: "INR",
       };
     }
 

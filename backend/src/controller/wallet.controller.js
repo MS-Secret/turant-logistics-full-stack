@@ -26,8 +26,11 @@ const GetHistory = async (req, res) => {
             return res.status(404).json({ success: false, message: "Driver profile not found" });
         }
 
-        const history = await WalletService.getHistory(driver._id);
-        return res.status(200).json({ success: true, history });
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+
+        const result = await WalletService.getHistory(driver._id, page, limit);
+        return res.status(200).json({ success: true, ...result });
     } catch (error) {
         console.error("Error fetching wallet history:", error);
         return res.status(500).json({ success: false, message: error.message });
