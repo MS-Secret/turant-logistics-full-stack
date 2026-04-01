@@ -1,6 +1,6 @@
 import Request from "@/config/apiConfig";
 
-const GetDrivers = async (payload: { page?: number; limit?: number }) =>
+const GetDrivers = async (payload: { page?: number; limit?: number; search?: string }) =>
   Request({
     method: "GET",
     url: "auth/driver/all",

@@ -2,10 +2,10 @@
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { 
-  Package, 
-  Truck, 
+  Truck,
+  User,
+  Package,
   Users, 
-  DollarSign, 
   TrendingUp, 
   MapPin,
   Clock,
@@ -14,6 +14,9 @@ import {
   IndianRupee
 } from 'lucide-react'
 import DashboardServices from '@/services/dashboard'
+
+
+
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);

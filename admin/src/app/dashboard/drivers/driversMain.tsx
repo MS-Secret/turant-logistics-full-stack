@@ -114,6 +114,16 @@ const DriversPage = () => {
   const [pageSize, setPageSize] = useState(10);
   const [totalDrivers, setTotalDrivers] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // Debounce search input
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [search]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -140,7 +150,8 @@ const DriversPage = () => {
     try{
       const payload={
         page,
-        limit:pageSize
+        limit:pageSize,
+        search: debouncedSearch
       }
       const response=await DriversService.GetDrivers(payload);
       if(response?.status===200){
@@ -204,7 +215,12 @@ const DriversPage = () => {
 
   useEffect(()=>{
     handleGetDrivers();
-  },[page, pageSize])
+  },[page, pageSize, debouncedSearch]);
+
+  // Reset page to 1 when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   return (
     <div className="space-y-6">
@@ -275,6 +291,8 @@ const DriversPage = () => {
               <input
                 type="text"
                 placeholder="Search drivers..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>

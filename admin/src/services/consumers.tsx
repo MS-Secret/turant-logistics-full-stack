@@ -1,6 +1,6 @@
 import Request from "@/config/apiConfig";
 
-const GetConsumerList=async(payload: { page?: number; limit?: number })=>Request({
+const GetConsumerList=async(payload: { page?: number; limit?: number; search?: string })=>Request({
     url:"auth/consumer/all",
     method:"GET",
     secure: true,

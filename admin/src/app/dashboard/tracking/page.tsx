@@ -9,10 +9,10 @@ const containerStyle = {
   height: '100%'
 };
 
-// Default center (e.g., Central India / Delhi)
+// Default center (Patna)
 const defaultCenter = {
-  lat: 28.6139,
-  lng: 77.2090
+  lat: 25.5941,
+  lng: 85.1376
 };
 
 interface DriverLocation {

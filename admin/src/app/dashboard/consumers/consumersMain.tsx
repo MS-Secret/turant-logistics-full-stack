@@ -103,6 +103,16 @@ const ConsumersMain = () => {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [total, setTotal] = useState(0);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // Debounce search input
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [search]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -122,7 +132,7 @@ const ConsumersMain = () => {
   const handleGetConsumers = async () => {
     try {
       setLoading(true);
-      const response = await ConsumersService.GetConsumerList({ page, limit });
+      const response = await ConsumersService.GetConsumerList({ page, limit, search: debouncedSearch });
       setConsumers(response.data.data.consumers);
       setTotal(response.data.data.totalConsumers);
     } catch (error) {
@@ -135,7 +145,12 @@ const ConsumersMain = () => {
 
   useEffect(() => {
     handleGetConsumers();
-  }, [page, limit]);
+  }, [page, limit, debouncedSearch]);
+
+  // Reset page to 1 when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   return (
     <div className="space-y-6">
@@ -213,6 +228,8 @@ const ConsumersMain = () => {
               <input
                 type="text"
                 placeholder="Search consumers..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
