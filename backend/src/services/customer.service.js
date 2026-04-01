@@ -4,17 +4,49 @@ const User = require("../models/user.model");
 
 const GetCustomerList = async (payload) => {
   try {
-    const { page, limit } = payload;
-    const customers = await Consumer.find()
-      .skip((page - 1) * limit)
+    const { page, limit, search } = payload;
+    let consumerQuery = {};
+
+    // Base pagination logic
+    const skip = (page - 1) * limit;
+
+    // Handle Search filter
+    if (search && search.trim() !== "") {
+      const searchRegex = new RegExp(search, "i");
+      
+      // Since Consumer and User are separate models, we first find matching Users based on username, email, or phone
+      const matchingUsers = await User.find({
+         $or: [
+           { username: searchRegex },
+           { email: searchRegex },
+           { phone: searchRegex },
+           { fullName: searchRegex },
+         ]
+      }).select("userId");
+      
+      const matchingUserIds = matchingUsers.map((user) => user.userId);
+      consumerQuery = { userId: { $in: matchingUserIds } };
+    }
+
+    const customers = await Consumer.find(consumerQuery)
+      .sort({ _id: -1 })
+      .skip(skip)
       .limit(limit);
-    if (!customers) {
+
+    if (!customers || customers.length === 0) {
       return {
-        success: false,
+        success: true, // Returning true with empty data is better for frontend than false
         message: "No customers found",
-        data: [],
+        data: {
+          totalConsumers: 0,
+          totalPages: 0,
+          currentPage: page,
+          pageSize: limit,
+          consumers: [],
+        },
       };
     }
+
     const customerDetailsPromises = customers.map(async (customer) => {
       const user = await User.find({
         userId: customer?.userId,
@@ -23,7 +55,7 @@ const GetCustomerList = async (payload) => {
     });
     const customerDetails = await Promise.all(customerDetailsPromises);
 
-    const totalCustomers = await Consumer.countDocuments();
+    const totalCustomers = await Consumer.countDocuments(consumerQuery);
     const totalPages = Math.ceil(totalCustomers / limit);
     const currentPage = page;
     const pageSize = limit;

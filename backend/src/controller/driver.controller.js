@@ -14,10 +14,11 @@ const driverService = require("../services/driver.service");
 
 const handleGetDriverList = async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, search = "" } = req.query;
     const result = await GetDriverList({
       page: parseInt(page),
       limit: parseInt(limit),
+      search,
     });
     console.log("Driver list result:", result);
     if (result.success) {

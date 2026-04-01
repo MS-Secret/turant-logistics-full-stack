@@ -3,11 +3,12 @@ const consumerService = require("../services/customer.service");
 const handleGetConsumerList = async (req, res) => {
   try {
     console.log("handleGetConsumerList called");
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, search = "" } = req.query;
 
     const result = await consumerService.GetCustomerList({
       page,
       limit,
+      search,
     });
     console.log("customer data:", result);
     if (result.success) {

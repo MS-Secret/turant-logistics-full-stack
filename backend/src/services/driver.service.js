@@ -11,15 +11,46 @@ const { GetKycDetails } = require("./kyc.service");
 
 const GetDriverList = async (payload) => {
   try {
-    const { page, limit } = payload;
-    const drivers = await Driver.find()
+    const { page, limit, search } = payload;
+    let driverQuery = {};
+
+    if (search && search.trim() !== "") {
+      const searchRegex = new RegExp(search, "i");
+      
+      const matchingUsers = await User.find({
+         $or: [
+           { username: searchRegex },
+           { email: searchRegex },
+           { phone: searchRegex },
+           { fullName: searchRegex },
+         ]
+      }).select("userId");
+      
+      const matchingUserIds = matchingUsers.map((user) => user.userId);
+      driverQuery = {
+        $or: [
+          { userId: { $in: matchingUserIds } },
+          { driverId: searchRegex }
+        ]
+      };
+    }
+
+    const drivers = await Driver.find(driverQuery)
+      .sort({ _id: -1 })
       .skip((page - 1) * limit)
       .limit(limit);
-    if (!drivers) {
+
+    if (!drivers || drivers.length === 0) {
       return {
-        success: false,
+        success: true, // Returning true with empty data is better for frontend
         message: "No drivers found",
-        data: [],
+        data: {
+          totalDrivers: 0,
+          totalPages: 0,
+          currentPage: page,
+          pageSize: limit,
+          drivers: [],
+        },
       };
     }
     const driverDetailsPromises = drivers.map(async (driver) => {
@@ -32,7 +63,7 @@ const GetDriverList = async (payload) => {
     // Resolve all promises
     const driverDetails = await Promise.all(driverDetailsPromises);
 
-    const totalDrivers = await Driver.countDocuments();
+    const totalDrivers = await Driver.countDocuments(driverQuery);
     console.log(`Total drivers in database: ${totalDrivers}`);
     const totalPages = Math.ceil(totalDrivers / limit);
     const currentPage = page;
