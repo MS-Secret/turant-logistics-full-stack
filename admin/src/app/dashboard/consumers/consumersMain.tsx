@@ -143,6 +143,31 @@ const ConsumersMain = () => {
     }
   };
 
+  const handleDeleteConsumer = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click navigation
+    if (window.confirm("Are you sure you want to permanently delete this consumer? This action cannot be undone.")) {
+      try {
+        setLoading(true);
+        // Find the user ID from the consumer object
+        const consumerToDelete = consumers.find(c => c._id === id);
+        if(!consumerToDelete) return;
+
+        const response = await ConsumersService.DeleteConsumer(consumerToDelete.userId);
+        if (response.success) {
+          toast.success("Consumer deleted successfully");
+          handleGetConsumers();
+        } else {
+          toast.error(response.message || "Failed to delete consumer");
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error("An error occurred while deleting the consumer");
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   useEffect(() => {
     handleGetConsumers();
   }, [page, limit, debouncedSearch]);
@@ -283,7 +308,11 @@ const ConsumersMain = () => {
                 <button className="text-green-600 hover:text-green-900 p-2 rounded-lg hover:bg-green-50 transition-colors">
                   <Edit className="w-4 h-4" />
                 </button>
-                <button className="text-red-600 hover:text-red-900 p-2 rounded-lg hover:bg-red-50 transition-colors">
+                <button 
+                  onClick={(e) => handleDeleteConsumer(consumer._id, e)}
+                  disabled={loading}
+                  className="text-red-600 hover:text-red-900 p-2 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                >
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>

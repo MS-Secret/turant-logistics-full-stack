@@ -13,9 +13,16 @@ const GetConsumerById=async(consumerId:string)=>Request({
     secure: true,
 });
 
-const ConsumersService={
+const DeleteConsumer = async (userId: string) => Request({
+    url: `auth/consumer/delete/${userId}`,
+    method: "DELETE",
+    secure: true,
+});
+
+const ConsumersService = {
     GetConsumerList,
     GetConsumerById,
+    DeleteConsumer,
 }
 
 export default ConsumersService;
