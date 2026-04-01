@@ -29,6 +29,7 @@ const {
 const {
   handleGetConsumerList,
   handleGetConsumerDetails,
+  handleDeleteConsumer
 } = require("../controller/customer.controller");
 const multer = require("multer");
 const upload = multer();
@@ -143,6 +144,7 @@ router.delete("/driver/delete/:userId", verifyToken, handleDeleteDriver);
 // ==================== Consumer HANDLING ====================
 router.get("/consumer/all", verifyToken, handleGetConsumerList);
 router.get("/consumer/:consumerId", verifyToken, handleGetConsumerDetails);
+router.delete("/consumer/delete/:userId", verifyToken, handleDeleteConsumer);
 
 
 // 404 handler for auth routes

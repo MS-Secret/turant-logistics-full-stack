@@ -122,7 +122,34 @@ const GetCustomerDetails = async ({consumerId}) => {
   }
 };
 
+const DeleteConsumer = async ({ userId }) => {
+  try {
+    if (!userId) {
+      return { success: false, message: "UserId is required" };
+    }
+
+    // 1. Delete Consumer model
+    const consumer = await Consumer.findOneAndDelete({ userId });
+
+    // 2. Delete User model
+    const user = await User.findOneAndDelete({ userId });
+
+    if (!consumer && !user) {
+      return { success: false, message: "Consumer not found" };
+    }
+
+    return {
+      success: true,
+      message: "Consumer permanently deleted"
+    };
+  } catch (error) {
+    console.error("Error deleting consumer:", error);
+    return { success: false, message: error.message };
+  }
+};
+
 module.exports = {
   GetCustomerList,
-  GetCustomerDetails
+  GetCustomerDetails,
+  DeleteConsumer
 };
