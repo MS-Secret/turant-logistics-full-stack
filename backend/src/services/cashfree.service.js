@@ -213,7 +213,7 @@ const createRefund = async (orderId, refundAmount, refundId) => {
       // Fallback manual axios call if SDK method is different in this exact version
       const axios = require('axios');
       const { cashfreeConfig } = require('../config/cashfreeConfig');
-      const baseURL = cashfreeConfig.environment === 'SANDBOX' ? 'https://api.cashfree.com/pg' : 'https://sandbox.cashfree.com/pg';
+      const baseURL = cashfreeConfig.environment === 'PRODUCTION' ? 'https://api.cashfree.com/pg' : 'https://sandbox.cashfree.com/pg';
       response = await axios.post(`${baseURL}/orders/${orderId}/refunds`, refundRequest, {
         headers: {
           'x-client-id': cashfreeConfig.clientId,
@@ -256,7 +256,7 @@ const axios = require('axios');
 
 const getPayoutToken = async () => {
   const { cashfreeConfig } = require('../config/cashfreeConfig');
-  const baseURL = cashfreeConfig.environment === 'SANDBOX'
+  const baseURL = cashfreeConfig.environment === 'PRODUCTION'
     ? 'https://payout-api.cashfree.com/payout/v1'
     : 'https://payout-gamma.cashfree.com/payout/v1';
 
@@ -284,7 +284,7 @@ const createBeneficiary = async (beneDetails) => {
     }
 
     const token = await getPayoutToken();
-    const baseURL = cashfreeConfig.environment === 'SANDBOX'
+    const baseURL = cashfreeConfig.environment === 'PRODUCTION'
       ? 'https://payout-api.cashfree.com/payout/v1'
       : 'https://payout-gamma.cashfree.com/payout/v1';
 
@@ -316,7 +316,7 @@ const requestTransfer = async (transferDetails) => {
     }
 
     const token = await getPayoutToken();
-    const baseURL = cashfreeConfig.environment === 'SANDBOX'
+    const baseURL = cashfreeConfig.environment === 'PRODUCTION'
       ? 'https://payout-api.cashfree.com/payout/v1'
       : 'https://payout-gamma.cashfree.com/payout/v1';
 
