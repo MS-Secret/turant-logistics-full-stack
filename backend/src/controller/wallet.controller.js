@@ -99,6 +99,7 @@ const GetWithdrawalsAdmin = async (req, res) => {
         const result = await WalletService.getWithdrawalsAdmin(status);
         return res.status(result.success ? 200 : 400).json(result);
     } catch (error) {
+        console.error("Error in GetWithdrawalsAdmin:", error);
         return res.status(500).json({ success: false, message: error.message });
     }
 };

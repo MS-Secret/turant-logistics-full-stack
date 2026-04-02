@@ -477,7 +477,8 @@ const getWithdrawalsAdmin = async (status) => {
 
         // Populate User details manually because Driver.userId is a String, not an ObjectId
         for (let req of requests) {
-            if (req.driver && req.driver.userId) {
+            // Check if userId is a string before querying to avoid CastError with shared references
+            if (req.driver && req.driver.userId && typeof req.driver.userId === 'string') {
                 const user = await User.findOne({ userId: req.driver.userId }).lean();
                 if (user) {
                     // Manually construct fullName because .lean() removes virtuals
@@ -505,33 +506,21 @@ const approveWithdrawalAdmin = async (requestId) => {
         const driver = await Driver.findById(withdrawalReq.driver);
         const user = await User.findOne({ userId: driver.userId });
 
-        // Prepare Beneficiary
-        const beneId = `BENE_${driver.userId}`;
-        const beneDetails = {
-            beneId: beneId,
-            name: withdrawalReq.method === 'BANK' ? withdrawalReq.bankDetails?.accountHolderName || user?.fullName : (user?.fullName || "Driver"),
-            email: user?.email || "driver@turant.com",
-            phone: user?.mobileNumber || "9999999999",
-            address1: "Turant Logistics"
-        };
-
-        if (withdrawalReq.method === 'BANK') {
-            beneDetails.bankAccount = withdrawalReq.bankDetails.accountNumber;
-            beneDetails.ifsc = withdrawalReq.bankDetails.ifsc;
-        } else {
-            beneDetails.vpa = withdrawalReq.upiDetails.upiId;
-        }
-
-        // Add Beneficiary to Cashfree
-        const beneResult = await cashfreeService.createBeneficiary(beneDetails);
-        if (!beneResult.success) {
-            return { success: false, message: "Failed to add beneficiary: " + beneResult.error };
-        }
+        // Resolve the driver's display name properly
+        const driverName = (user?.profile?.firstName && user?.profile?.lastName)
+            ? `${user.profile.firstName} ${user.profile.lastName}`.trim()
+            : (user?.username || user?.fullName || "Driver");
+        const beneName = withdrawalReq.method === 'BANK'
+            ? (withdrawalReq.bankDetails?.accountHolderName || driverName)
+            : driverName;
 
         // Request Transfer
         const transferId = `WD_${Date.now()}_${withdrawalReq._id.toString().substring(0, 5)}`;
         const transferDetails = {
-            beneId: beneId,
+            beneName: beneName,
+            beneInstrument: withdrawalReq.method === 'BANK'
+                ? { bank_account_number: withdrawalReq.bankDetails.accountNumber, bank_ifsc: withdrawalReq.bankDetails.ifsc }
+                : { vpa: withdrawalReq.upiDetails.upiId },
             amount: withdrawalReq.amount.toString(),
             transferId: transferId,
             transferMode: withdrawalReq.method === 'BANK' ? 'IMPS' : 'UPI',

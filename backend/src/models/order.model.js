@@ -34,6 +34,8 @@ const orderSchema = createBaseSchema({
       'DELIVERED',
       'COMPLETED',
       'CANCELLED',
+      'REFUND_INITIATED',
+      'REFUND_FAILED',
       'REFUNDED'
     ],
     default: 'CREATED'
@@ -174,7 +176,7 @@ const orderSchema = createBaseSchema({
     },
     status: {
       type: String,
-      enum: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'REFUNDED'],
+      enum: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'REFUND_INITIATED', 'REFUND_FAILED', 'REFUNDED'],
       default: 'PENDING'
     },
     paymentIntentId: String,
