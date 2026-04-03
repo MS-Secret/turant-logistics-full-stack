@@ -259,6 +259,7 @@ const CreateTransaction = async (payload) => {
       };
     }
 
+    console.log("📤 Final Transaction Response Data:", JSON.stringify(responseData, null, 2));
     return {
       success: true,
       message: "Transaction created successfully",
