@@ -36,6 +36,21 @@ const register = async (userData, skipOTP = false) => {
   });
 
   if (existingUser) {
+    if (existingUser.isDeleted) {
+      console.log("Reactivating soft-deleted user:", existingUser.userId);
+      existingUser.isDeleted = false;
+      existingUser.status = "PENDING_VERIFICATION";
+      existingUser.deletedAt = undefined;
+      // Optionally reset profile data or keep it based on policy
+      await existingUser.save();
+      return {
+        userId: existingUser.userId,
+        email: existingUser.email,
+        phone: existingUser.phone,
+        role: existingUser.role,
+        status: existingUser.status,
+      };
+    }
     if (role === "ADMIN" && existingUser.role === "ADMIN") {
       console.log("Admin already exists:", existingUser);
       return null;
@@ -456,6 +471,13 @@ const verifyOTP = async (identifier, otp, purpose, identifierType, role) => {
       if (!user) {
         throw new Error("Failed to retrieve newly registered user");
       }
+    } else if (user.isDeleted) {
+      // Reactivate soft-deleted user found via direct query
+      console.log("Reactivating soft-deleted user during OTP verification:", user.userId);
+      user.isDeleted = false;
+      user.status = "ACTIVE";
+      user.deletedAt = undefined;
+      await user.save();
     }
 
     // Now we definitely have a user (either existing or newly created)
