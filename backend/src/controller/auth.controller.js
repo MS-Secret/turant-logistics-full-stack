@@ -74,12 +74,14 @@ const login = async (req, res) => {
 // Send OTP
 const sendOTP = async (req, res) => {
   try {
-    const { identifier, purpose, identifierType = "PHONE" } = req.body;
+    const { identifier, purpose, identifierType = "PHONE", appHash } = req.body;
 
     const result = await authService.sendOTP(
       identifier,
       purpose,
-      identifierType
+      identifierType,
+      null,
+      appHash
     );
     if (!result.success) {
       return res.status(httpStatusCode.BAD_REQUEST).json(result);

@@ -38,7 +38,8 @@ const GetDriverList = async (payload) => {
     const drivers = await Driver.find(driverQuery)
       .sort({ _id: -1 })
       .skip((page - 1) * limit)
-      .limit(limit);
+      .limit(limit)
+      .populate("kycDetailsId");
 
     if (!drivers || drivers.length === 0) {
       return {
