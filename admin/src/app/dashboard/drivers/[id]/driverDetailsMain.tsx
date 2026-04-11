@@ -359,6 +359,12 @@ const DriverDetailsMain: React.FC<DriverDetailsMainProps> = ({ driverId }) => {
             </p>
           </div>
           <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-500">Operation City</label>
+            <p className="text-gray-900">
+              {driver?.kyc?.vehicle.operationCity || "N/A"}
+            </p>
+          </div>
+          <div className="space-y-1">
             <label className="text-sm font-medium text-gray-500">
               Language
             </label>

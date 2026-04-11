@@ -105,6 +105,11 @@ interface Driver {
   ratings: DriverRatings;
   earnings: DriverEarnings;
   statistics: DriverStatistics;
+  kycDetailsId?: {
+    vehicle?: {
+      operationCity?: string;
+    }
+  };
 }
 
 const DriversPage = () => {
@@ -232,7 +237,7 @@ const DriversPage = () => {
         </div>
         <button className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors">
           <Plus className="w-4 h-4" />
-          <span>Add Driver</span>
+          <span>Drivers List</span>
         </button>
       </div>
 
@@ -365,7 +370,7 @@ const DriversPage = () => {
                 <div className="flex items-center space-x-2">
                   <MapPin className="w-4 h-4 text-gray-400" />
                   <span className="text-sm text-gray-600">
-                    {driver.user.profile?.address?.country || "N/A"}
+                    {driver.kycDetailsId?.vehicle?.operationCity || driver.user.profile?.address?.country || "N/A"}
                   </span>
                 </div>
 
