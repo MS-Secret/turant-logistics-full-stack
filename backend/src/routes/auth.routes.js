@@ -24,7 +24,8 @@ const {
   handleUpdateCurrentLocation,
   handleBlockDriver,
   handleUnblockDriver,
-  handleDeleteDriver
+  handleDeleteDriver,
+  handleGetDriverDashboard
 } = require("../controller/driver.controller");
 const {
   handleGetConsumerList,
@@ -129,6 +130,7 @@ router.delete(
 
 
 // ==================== DRIVER HANDLING ====================
+router.get("/driver/dashboard", verifyToken, handleGetDriverDashboard);
 router.get("/driver/all", verifyToken, handleGetDriverList);
 router.get("/driver/active", verifyToken, handleActiveFindingDrivers);
 router.get("/driver/nearby", verifyToken, handleGetNearbyDrivers);

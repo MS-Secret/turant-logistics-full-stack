@@ -199,6 +199,15 @@ const processOrderPayment = async (orderId) => {
 
         await wallet.save();
 
+        // --- Incentive & Referral Processing ---
+        try {
+            const incentiveService = require("./incentive.service");
+            await incentiveService.checkAndCreditOrderIncentive(driver._id);
+            await incentiveService.checkAndCreditReferralRewards(driverId);
+        } catch (incentiveErr) {
+            console.error("[Wallet Service] Incentive processing failed:", incentiveErr);
+        }
+
         // Update Driver Total Earnings statistics
         driver.earnings.totalEarnings += riderEarning;
         driver.earnings.todayEarnings += riderEarning;

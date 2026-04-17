@@ -99,14 +99,15 @@ const sendOTP = async (req, res) => {
 // Verify OTP
 const verifyOTP = async (req, res) => {
   try {
-    const { identifier, otp, purpose, identifierType, role } = req.body;
+    const { identifier, otp, purpose, identifierType, role, referralCode } = req.body;
 
     const result = await authService.verifyOTP(
       identifier,
       otp,
       purpose,
       identifierType,
-      role
+      role,
+      referralCode
     );
 
     return res.status(httpStatusCode.OK).json({

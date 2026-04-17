@@ -6,6 +6,7 @@ const { VerifyTokenThroughSocket } = require("../middleware/auth.middleware");
 const { UpdateOrderStatusWithDriver, updateRideStatusByOrderId } = require("../services/order.service");
 const PricingService = require("../services/pricing.service");
 const { calculateDistance } = require("../utils/locationUtils");
+const logger = require("../utils/logger");
 
 // Store active ride requests and their timers
 const activeRideRequests = new Map();
@@ -22,7 +23,7 @@ const cleanupRideRequestByOrderId = (orderId) => {
       
       // Remove from active requests
       activeRideRequests.delete(requestId);
-      console.log(`🧹 Cleaned up active ride request ${requestId} for order ${orderId}`);
+      logger.debug(`Cleaned up active ride request`, { requestId, orderId });
       return true;
     }
   }
@@ -30,27 +31,11 @@ const cleanupRideRequestByOrderId = (orderId) => {
 };
 dotenv.config();
 
-// Create logger instance
-const logger = winston.createLogger({
-  level: "info",
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.errors({ stack: true }),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple()
-      ),
-    }),
-  ],
-});
+// Centralized logger imported above
 
 const initializeSocket = (server) => {
   try {
-    console.log("Initializing Socket.io...");
+    logger.info("Initializing Socket.io...");
     const io = new Server(server, {
       cors: {
         origin: "*",
@@ -66,14 +51,13 @@ const initializeSocket = (server) => {
     });
 
     io.on("connection", async (socket) => {
-      console.log("New client connected:", socket.id);
+      logger.debug("New client connected", { socketId: socket.id });
 
       // Authenticate socket connection
       try {
-        console.log("socket token:", socket.handshake.auth);
         const token = socket.handshake.auth.token;
         if (!token) {
-          console.log("Socket authentication failed: No token provided");
+          logger.warn("Socket authentication failed: No token provided", { socketId: socket.id });
           socket.emit("auth_error", { message: "No token provided" });
           socket.disconnect();
           return;
@@ -83,7 +67,7 @@ const initializeSocket = (server) => {
         const response = await VerifyTokenThroughSocket(token);
 
         if (!response.success) {
-          console.log("Socket authentication failed:", response.message);
+          logger.warn("Socket authentication failed", { socketId: socket.id, message: response.message });
           socket.emit("auth_error", {
             message: response.message || "Token validation failed",
           });
@@ -92,8 +76,7 @@ const initializeSocket = (server) => {
         }
 
         const decoded = response.data;
-        console.log("decode user:", decoded);
-        console.log("Socket authenticated for user:", decoded);
+        logger.debug("Socket authenticated for user", { user: logger.sanitize(decoded) });
 
         // Set user ID - note that decoded already contains userId, not nested in user object
         socket.userId = decoded.userId;

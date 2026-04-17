@@ -1,6 +1,4 @@
 const admin = require("firebase-admin");
-
-// Module-level variables to maintain state
 let firebaseApp = null;
 let messaging = null;
 let initialized = false;

@@ -8,6 +8,7 @@ const KYCModel = require("../models/kyc.model");
 const NotificationModel = require("../models/notification.model");
 const { UpdateOrderStatusWithDriver } = require("./order.service");
 const { GetKycDetails } = require("./kyc.service");
+const logger = require("../utils/logger");
 
 const GetDriverList = async (payload) => {
   try {
@@ -54,25 +55,22 @@ const GetDriverList = async (payload) => {
         },
       };
     }
-    const driverDetailsPromises = drivers.map(async (driver) => {
-      const user = await User.find({
-        userId: driver.userId,
-      });
-      return { ...driver.toObject(), user: user[0] };
+    const driverUserIds = drivers.map(d => d.userId);
+    const users = await User.find({ userId: { $in: driverUserIds } });
+    const userMap = {};
+    users.forEach(u => userMap[u.userId] = u);
+    
+    const driverDetails = drivers.map(driver => {
+      return { ...driver.toObject(), user: userMap[driver.userId] };
     });
 
-    // Resolve all promises
-    const driverDetails = await Promise.all(driverDetailsPromises);
-
     const totalDrivers = await Driver.countDocuments(driverQuery);
-    console.log(`Total drivers in database: ${totalDrivers}`);
+    logger.debug(`Found ${totalDrivers} drivers in database`);
     const totalPages = Math.ceil(totalDrivers / limit);
     const currentPage = page;
     const pageSize = limit;
-
-    console.log(
-      `Total pages: ${totalPages}, Current page: ${currentPage}, Page size: ${pageSize}`
-    );
+ 
+    logger.debug(`Pagination stats`, { totalPages, currentPage, pageSize });
     return {
       success: true,
       message: "Driver list fetched successfully",
@@ -85,7 +83,7 @@ const GetDriverList = async (payload) => {
       },
     };
   } catch (error) {
-    console.error("Error fetching driver list:", error);
+    logger.error("Error fetching driver list", { error: error.message });
     return {
       success: false,
       message: "Internal server error",
@@ -109,15 +107,15 @@ const GetDriverDetails = async ({ driverId, userId }) => {
         data: null,
       };
     }
-    const user = await User.find({
+    const user = await User.findOne({
       userId: driver.userId,
     });
     const kycResponse = await GetKycDetails(driver.userId);
     const kycData = kycResponse?.data;
-    console.log("KYC Data for driver:", kycData);
+    logger.debug("KYC Data for driver fetched", { userId: driver.userId, kycStatus: kycData?.status });
     const data = {
       ...driver.toObject(),
-      user: user[0],
+      user: user,
       kyc: kycData,
     };
     return {
@@ -126,7 +124,7 @@ const GetDriverDetails = async ({ driverId, userId }) => {
       data,
     };
   } catch (error) {
-    console.error("Error fetching driver details:", error);
+    logger.error("Error fetching driver details", { error: error.message });
     return {
       success: false,
       message: "Internal server error",
@@ -136,51 +134,49 @@ const GetDriverDetails = async ({ driverId, userId }) => {
 };
 
 const UpdateKycStatus = async ({ userId, status }) => {
-  console.log(
-    `UpdateKycStatus called with userId: ${userId}, status: ${status}`
-  );
-  try {
-    if (!userId) {
+    logger.debug("UpdateKycStatus called", { userId, status });
+    try {
+      if (!userId) {
+        return {
+          success: false,
+          message: "UserId is required",
+        };
+      }
+      if (!status) {
+        return {
+          success: false,
+          message: "Status is required",
+        };
+      }
+      const updatePayload = { kycStatus: status };
+  
+      // Automatically approve driver if KYC is verified
+      if (status === 'VERIFIED') {
+        updatePayload.approvalStatus = 'APPROVED';
+        updatePayload.isActive = true;
+      } else if (status === 'REJECTED') {
+        updatePayload.approvalStatus = 'REJECTED';
+        updatePayload.isActive = false;
+      }
+  
+      const driver = await Driver.findOneAndUpdate(
+        { userId },
+        updatePayload,
+        { new: true }
+      );
+      if (!driver) {
+        return {
+          success: false,
+          message: "Driver not found for the given UserId",
+        };
+      }
       return {
-        success: false,
-        message: "UserId is required",
+        success: true,
+        message: "Driver KYC status updated successfully",
+        data: driver,
       };
-    }
-    if (!status) {
-      return {
-        success: false,
-        message: "Status is required",
-      };
-    }
-    const updatePayload = { kycStatus: status };
-
-    // Automatically approve driver if KYC is verified
-    if (status === 'VERIFIED') {
-      updatePayload.approvalStatus = 'APPROVED';
-      updatePayload.isActive = true;
-    } else if (status === 'REJECTED') {
-      updatePayload.approvalStatus = 'REJECTED';
-      updatePayload.isActive = false;
-    }
-
-    const driver = await Driver.findOneAndUpdate(
-      { userId },
-      updatePayload,
-      { new: true }
-    );
-    if (!driver) {
-      return {
-        success: false,
-        message: "Driver not found for the given UserId",
-      };
-    }
-    return {
-      success: true,
-      message: "Driver KYC status updated successfully",
-      data: driver,
-    };
-  } catch (error) {
-    console.error("Error updating driver KYC status:", error);
+    } catch (error) {
+      logger.error("Error updating driver KYC status", { error: error.message });
     return {
       success: false,
       message: "Internal server error",
@@ -202,8 +198,8 @@ const FindingActiveDrivers = async () => {
         data: [],
       };
     }
-    console.log("Active drivers found:", activeDrivers);
-
+    logger.debug(`Active drivers found: ${activeDrivers.length}`);
+ 
     const userIds = activeDrivers.map((driver) => driver.userId);
     const users = await User.find({ userId: { $in: userIds } });
     const userMap = {};
@@ -230,7 +226,7 @@ const FindingActiveDrivers = async () => {
       data: activeDrivers,
     };
   } catch (error) {
-    console.log("error while finding the active drivers:", error);
+    logger.error("error while finding the active drivers", { error: error.message });
     return {
       success: false,
       message: "Internal server error",
@@ -290,7 +286,7 @@ const UpdateDriverWorkingStatus = async (payload) => {
       data: driver,
     };
   } catch (error) {
-    console.log("error while updating the driver working status:", error);
+    logger.error("error while updating the driver working status", { error: error.message });
     return {
       success: false,
       message: "Internal server error",
@@ -345,7 +341,7 @@ const UpdateCurrentLocation = async (payload) => {
       data: driver,
     };
   } catch (error) {
-    console.log("error while updating the driver current location:", error);
+    logger.error("error while updating the driver current location", { error: error.message });
     return {
       success: false,
       message: "error while update location",
@@ -357,8 +353,7 @@ const UpdateCurrentLocation = async (payload) => {
 const GetNearbyDrivers = async (payload) => {
   try {
     const { lat, long, radiusInKm = 5, orderId, vehicleType, vehicleBodyType, vehicleFuelType } = payload;
-    console.log("order id in get nearby drivers:", orderId);
-    console.log("Looking for vehicle:", { vehicleType, vehicleBodyType, vehicleFuelType });
+    logger.debug("GetNearbyDrivers search started", { orderId, radiusInKm, vehicleType });
     // Validate required parameters
     if (!lat || !long) {
       return {
@@ -432,8 +427,7 @@ const GetNearbyDrivers = async (payload) => {
       };
     }
 
-    console.log(`Found ${activeDrivers.length} active drivers`);
-    console.log("active drivers data:", activeDrivers);
+    logger.debug(`Found ${activeDriversQuery.length} candidate drivers after attribute filter: ${activeDrivers.length}`);
 
     // Filter drivers within radius and add distance information
     const nearbyDrivers = filterDriversByRadius(
@@ -484,7 +478,7 @@ const GetNearbyDrivers = async (payload) => {
       },
     };
   } catch (error) {
-    console.log("Error while getting nearby drivers:", error);
+    logger.error("Error while getting nearby drivers", { error: error.message });
     return {
       success: false,
       message: "Error while getting nearby drivers",
@@ -605,7 +599,7 @@ const SendRideRequestToDrivers = async (payload) => {
       },
     };
   } catch (error) {
-    console.log("Error while sending ride request:", error);
+    logger.error("Error while sending ride request", { error: error.message });
     return {
       success: false,
       message: "Error while sending ride request",
@@ -673,7 +667,7 @@ const CompleteRideByDriver = async ({ driverId, orderId, amount }) => {
       },
     };
   } catch (error) {
-    console.log("Error while completing ride by driver:", error);
+    logger.error("Error while completing ride by driver", { error: error.message });
     return {
       success: false,
       message: "Error while completing ride by driver",
@@ -704,11 +698,53 @@ const ResetDailyEarnings = async () => {
       },
     };
   } catch (error) {
-    console.log("Error while resetting daily earnings:", error);
+    logger.error("Error while resetting daily earnings", { error: error.message });
     return {
       success: false,
       message: "Error while resetting daily earnings",
       error: error?.message,
+    };
+  }
+};
+
+const GetDriverDashboardData = async (userId) => {
+  try {
+    const user = await User.findOne({ userId, isDeleted: false });
+    if (!user) {
+      return { success: false, message: "User not found" };
+    }
+
+    const driver = await Driver.findOne({ userId });
+    if (!driver) {
+      return { success: false, message: "Driver record not found" };
+    }
+
+    // Use wallet service to get balance
+    const walletService = require("./wallet.service");
+    const balance = await walletService.getWalletBalance(driver._id);
+
+    // Use incentive service to get stats
+    const incentiveService = require("./incentive.service");
+    const incentiveStats = await incentiveService.getDriverIncentiveStats(userId);
+
+    return {
+      success: true,
+      message: "Dashboard data fetched successfully",
+      data: {
+        profile: user,
+        driver: driver,
+        wallet: {
+          balance: balance
+        },
+        incentives: incentiveStats
+      }
+    };
+  } catch (error) {
+    logger.error("Error fetching driver dashboard data", { userId, error: error.message });
+    return {
+      success: false,
+      message: "Internal server error",
+      error: error.message
     };
   }
 };
@@ -1054,5 +1090,6 @@ module.exports = {
   AcceptRideRequest,
   BlockDriver,
   UnblockDriver,
-  DeleteDriver
+  DeleteDriver,
+  GetDriverDashboardData,
 };

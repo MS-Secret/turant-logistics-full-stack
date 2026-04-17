@@ -114,6 +114,19 @@ const driverSchema = createBaseSchema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'KYCApplication',
     required: false
+  },
+  referralCode: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  referredBy: {
+    type: String,
+    required: false
+  },
+  referralCount: {
+    type: Number,
+    default: 0
   }
 });
 

@@ -6,6 +6,7 @@ const { sendToMultipleDevices } = require("../config/firebase.config");
 const { getUserById } = require("./user.service");
 const cashfreeService = require("./cashfree.service");
 const { generateAndUploadInvoice } = require("../utils/pdfGenerator");
+const logger = require("../utils/logger");
 
 const sendRideEventNotification = async (userId, title, body, orderId) => {
   try {
@@ -40,10 +41,10 @@ const sendRideEventNotification = async (userId, title, body, orderId) => {
         }
       };
       await sendToMultipleDevices(fcmTokens, payload);
-      console.log(`Notification sent to User ${userId}: ${title}`);
+      logger.info(`Notification sent to User`, { userId, title });
     }
   } catch (err) {
-    console.error("Error sending ride event notification:", err);
+    logger.error("Error sending ride event notification", { error: err.message, userId });
   }
 };
 
@@ -58,7 +59,7 @@ const getAllOrders = async (payload) => {
       .skip((page - 1) * limit)
       .limit(limit)
       .exec();
-    console.log(orders);
+    logger.debug("Orders fetched", { count: orders.length });
     if (!orders) {
       return { success: false, message: "No orders found" };
     }
@@ -82,12 +83,8 @@ const getAllOrders = async (payload) => {
       },
     };
   } catch (error) {
-    console.error("Error fetching orders:", error);
-    return {
-      success: false,
-      message: "Internal server error",
-      error: error.message,
-    };
+    logger.error("Error fetching orders", { error: error.message });
+    return { success: false, message: "Internal server error", error: error.message };
   }
 };
 
@@ -108,7 +105,7 @@ const getConsumersOrders = async (payload) => {
     if (!orders) {
       return { success: false, message: "No orders found for this consumer" };
     }
-    console.log(orders);
+    logger.debug("Consumer orders fetched", { consumerId, count: orders.length });
     const totalOrders = await OrderModel.countDocuments({ userId: consumerId });
     const totalPages = Math.ceil(totalOrders / limit);
     const currentPage = page;
@@ -129,12 +126,8 @@ const getConsumersOrders = async (payload) => {
       },
     };
   } catch (error) {
-    console.error("Error fetching consumer orders:", error);
-    return {
-      success: false,
-      message: "Internal server error",
-      error: error.message,
-    };
+    logger.error("Error fetching consumer orders", { error: error.message, consumerId });
+    return { success: false, message: "Internal server error", error: error.message };
   }
 };
 
@@ -176,12 +169,8 @@ const getDriversOrders = async (payload) => {
       },
     };
   } catch (error) {
-    console.error("Error fetching driver orders:", error);
-    return {
-      success: false,
-      message: "Internal server error",
-      error: error.message,
-    };
+    logger.error("Error fetching driver orders", { error: error.message, driverId });
+    return { success: false, message: "Internal server error", error: error.message };
   }
 };
 
@@ -223,12 +212,8 @@ const getOrderById = async (payload) => {
       },
     };
   } catch (error) {
-    console.error("Error fetching order by ID:", error);
-    return {
-      success: false,
-      message: "Internal server error",
-      error: error.message,
-    };
+    logger.error("Error fetching order by ID", { error: error.message, orderId: payload?.orderId });
+    return { success: false, message: "Internal server error", error: error.message };
   }
 };
 
@@ -255,19 +240,15 @@ const UpdateOrderDetails = async (payload) => {
       data: updatedOrder,
     };
   } catch (error) {
-    console.error("Error updating order details:", error);
-    return {
-      success: false,
-      message: "Internal server error",
-      error: error.message,
-    };
+    logger.error("Error updating order details", { error: error.message, orderId: payload?.orderId });
+    return { success: false, message: "Internal server error", error: error.message };
   }
 };
 
 const UpdateOrderStatusWithDriver = async (payload) => {
   try {
     const { orderId, status, driverId } = payload;
-    console.log("Updating order status with driver:", payload);
+    logger.info("Updating order status with driver", { orderId, status, driverId });
     if (!orderId) {
       return { success: false, message: "Order ID is required" };
     }
@@ -304,7 +285,7 @@ const UpdateOrderStatusWithDriver = async (payload) => {
         );
       }
     } catch (notifErr) {
-      console.error("Error sending order status notification:", notifErr);
+      logger.error("Error sending order status notification", { error: notifErr.message, orderId });
     }
 
     // Auto-complete payment for CASH/COD orders when ride is completed
@@ -318,7 +299,7 @@ const UpdateOrderStatusWithDriver = async (payload) => {
     if (status === "COMPLETED") {
       const walletResult = await require("../services/wallet.service").processOrderPayment(updatedOrder._id);
       if (!walletResult.success) {
-        console.error("Wallet processing failed for order:", orderId, walletResult.error);
+        logger.error("Wallet processing failed for order", { orderId, error: walletResult.error });
       }
     }
 
@@ -328,12 +309,8 @@ const UpdateOrderStatusWithDriver = async (payload) => {
       data: updatedOrder,
     };
   } catch (error) {
-    console.error("Error updating order status with driver:", error);
-    return {
-      success: false,
-      message: "Internal server error",
-      error: error.message,
-    };
+    logger.error("Error updating order status with driver", { error: error.message, orderId: payload?.orderId });
+    return { success: false, message: "Internal server error", error: error.message };
   }
 };
 
@@ -368,12 +345,8 @@ const UpdateThePaymentOrderStatus = async (payload) => {
       data: order,
     };
   } catch (error) {
-    console.error("Error updating payment order status:", error);
-    return {
-      success: false,
-      message: "Internal server error",
-      error: error.message,
-    };
+    logger.error("Error updating payment order status", { error: error.message, orderId: payload?.orderId });
+    return { success: false, message: "Internal server error", error: error.message };
   }
 };
 
@@ -432,15 +405,14 @@ const updateRideStatusByOrderId = async (payload) => {
         );
       }
     } catch (notifErr) {
-      console.error("Error sending ride status notification:", notifErr);
+      logger.error("Error sending ride status notification", { error: notifErr.message, orderId });
     }
 
     // Trigger Wallet Processing if status is 'COMPLETED'
     if (status === "COMPLETED") {
       const walletResult = await require("../services/wallet.service").processOrderPayment(updatedOrder._id);
       if (!walletResult.success) {
-        console.error("Wallet processing failed for order:", orderId, walletResult.error);
-        // Optional: You might want to flag this error, but don't fail the HTTP response for the status update
+        logger.error("Wallet processing failed for completed order", { orderId, error: walletResult.error });
       }
     }
 
@@ -450,12 +422,8 @@ const updateRideStatusByOrderId = async (payload) => {
       data: updatedOrder,
     };
   } catch (error) {
-    console.error("Error updating ride status:", error);
-    return {
-      success: false,
-      message: "Internal server error",
-      error: error.message,
-    };
+    logger.error("Error updating ride status", { error: error.message, orderId: payload?.orderId });
+    return { success: false, message: "Internal server error", error: error.message };
   }
 };
 
@@ -564,7 +532,7 @@ const cancelOrderWithRefund = async (orderId, io) => {
             transaction.status = "REFUNDED";
             await transaction.save();
           } else {
-            console.error("Refund failed:", refundResponse.error);
+            logger.error("Refund failed", { error: refundResponse.error, orderId });
             refundMessage = "Order cancelled, but refund failed to initiate. Please contact support.";
           }
         }
@@ -598,12 +566,8 @@ const cancelOrderWithRefund = async (orderId, io) => {
       data: order,
     };
   } catch (error) {
-    console.error("Error in cancelOrderWithRefund:", error);
-    return {
-      success: false,
-      message: "Internal server error during cancellation",
-      error: error.message,
-    };
+    logger.error("Error in cancelOrderWithRefund", { error: error.message, orderId });
+    return { success: false, message: "Internal server error during cancellation", error: error.message };
   }
 };
 
@@ -644,12 +608,8 @@ const getOrderInvoice = async (orderId) => {
       data: { invoiceUrl: newInvoiceUrl }
     };
   } catch (error) {
-    console.error("Error generating/fetching invoice:", error);
-    return {
-      success: false,
-      message: "Internal server error",
-      error: error.message,
-    };
+    logger.error("Error generating/fetching invoice", { error: error.message, orderId });
+    return { success: false, message: "Internal server error", error: error.message };
   }
 };
 
@@ -712,7 +672,7 @@ const adminForceCancelRide = async (orderId, adminId, reason = "USER_NO_SHOW", i
       const { cleanupRideRequestByOrderId } = require("../socket/socket");
       cleanupRideRequestByOrderId(orderId);
     } catch (socketErr) {
-      console.error("Error calling cleanupRideRequestByOrderId:", socketErr);
+      logger.error("Error calling cleanupRideRequestByOrderId", { error: socketErr.message, orderId });
     }
 
     // Reset Driver availability if there was a driver assigned
@@ -764,12 +724,8 @@ const adminForceCancelRide = async (orderId, adminId, reason = "USER_NO_SHOW", i
       data: order,
     };
   } catch (error) {
-    console.error("Error in adminForceCancelRide:", error);
-    return {
-      success: false,
-      message: "Internal server error during admin force cancellation",
-      error: error.message,
-    };
+    logger.error("Error in adminForceCancelRide", { error: error.message, orderId });
+    return { success: false, message: "Internal server error during admin force cancellation", error: error.message };
   }
 };
 

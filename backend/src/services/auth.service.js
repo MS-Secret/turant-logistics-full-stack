@@ -12,6 +12,7 @@ const {
 const cloudinary = require("../config/cloudinaryConfig");
 const { sendSMS } = require("./smsService/sms.processor");
 const { GetKycDetails } = require("./kyc.service");
+const logger = require("../utils/logger");
 
 // Register user
 const register = async (userData, skipOTP = false) => {
@@ -37,7 +38,7 @@ const register = async (userData, skipOTP = false) => {
 
   if (existingUser) {
     if (existingUser.isDeleted) {
-      console.log("Reactivating soft-deleted user:", existingUser.userId);
+      logger.info("Reactivating soft-deleted user", { userId: existingUser.userId });
       existingUser.isDeleted = false;
       existingUser.status = "PENDING_VERIFICATION";
       existingUser.deletedAt = undefined;
@@ -52,7 +53,7 @@ const register = async (userData, skipOTP = false) => {
       };
     }
     if (role === "ADMIN" && existingUser.role === "ADMIN") {
-      console.log("Admin already exists:", existingUser);
+      logger.debug("Admin already exists", { userId: existingUser.userId });
       return null;
     }
     throw new Error(`User already exists with this ${phone ? 'phone' : 'email'} and role ${role}`);
@@ -60,7 +61,7 @@ const register = async (userData, skipOTP = false) => {
 
   // Generate unique user ID
   const userId = generateUserId(role);
-  console.log("userId:", userId);
+  logger.debug("Generated userId", { userId });
 
   // Create user
   const user = new User({
@@ -71,7 +72,7 @@ const register = async (userData, skipOTP = false) => {
     role,
     username: userName || `${userName}_${Date.now()}`,
   });
-  console.log("user before save:", user);
+  logger.debug("User object prepared for save", { user: logger.sanitize(user) });
 
   try {
     await user.save();
@@ -117,7 +118,7 @@ const register = async (userData, skipOTP = false) => {
 
 // Create role-specific profile
 const createRoleSpecificProfile = async (user) => {
-  console.log("user Role:", user?.role);
+  logger.debug("createRoleSpecificProfile", { role: user?.role, userId: user?.userId });
   switch (user.role) {
     case "USER":
       const consumer = new Consumer({
@@ -134,6 +135,14 @@ const createRoleSpecificProfile = async (user) => {
         driverId: `DRV${Date.now()}${Math.floor(Math.random() * 1000)}`,
       });
       await driver.save();
+      
+      // Auto-generate referral code for new drivers
+      try {
+        const incentiveService = require("./incentive.service");
+        await incentiveService.generateReferralCode(user.userId);
+      } catch (err) {
+        console.error("Failed to generate referral code for driver:", err);
+      }
       break;
 
     case "ADMIN":
@@ -171,8 +180,7 @@ const login = async (identifier, password, deviceInfo = {}, expectedRole = null)
     
     // Find user by email or phone (and role if provided)
     const user = await User.findOne(query).select("+password");
-    console.log("login user:", user);
-    console.log("login expectedRole:", expectedRole);
+    logger.debug("Login attempt details", { identifier: logger.sanitize(identifier), expectedRole });
 
     if (!user) {
       throw new Error("Invalid credentials");
@@ -216,7 +224,7 @@ const login = async (identifier, password, deviceInfo = {}, expectedRole = null)
       userAgent: deviceInfo?.userAgent,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
     });
-    console.log("session:", session);
+    logger.debug("Session created", { sessionId: session._id });
 
     // Update user metadata
     user.metadata.lastLoginAt = new Date();
@@ -240,15 +248,14 @@ const login = async (identifier, password, deviceInfo = {}, expectedRole = null)
     }
 
     await user.save();
-    console.log("access token:", accessToken);
-    console.log("refresh token:", refreshToken);
+    logger.debug("User login metadata updated", { userId: user.userId });
 
     // For drivers, fetch KYC data via events
     let kycInfo = null;
     let driverProfileData = null;
     if (user.role === "DRIVER") {
       const driverProfile = await Driver.findOne({ userId: user.userId });
-      console.log("driverProfile:", driverProfile);
+      logger.debug("Driver profile fetched for login", { userId: user.userId });
       driverProfileData = driverProfile;
     }
 
@@ -270,7 +277,7 @@ const login = async (identifier, password, deviceInfo = {}, expectedRole = null)
       },
     };
   } catch (error) {
-    console.log("login error:", error);
+    logger.error("Login service error", { error: error.message });
     return { message: "Login failed", error: error?.message };
   }
 };
@@ -310,7 +317,7 @@ const sendOTP = async (identifier, purpose, identifierType = "PHONE", user) => {
       // Fire and forget - don't await, let it run in background
       sendRegistrationOTPEmail({ email: user.email, username: user.username, otp })
         .then((result) => {
-          console.log("Registration OTP email sent successfully:", result);
+          logger.info("Registration OTP email sent successfully", { email: user.email });
         })
         .catch((error) => {
           console.error("Failed to send registration OTP email (non-blocking):", error.message);
@@ -325,7 +332,7 @@ const sendOTP = async (identifier, purpose, identifierType = "PHONE", user) => {
       // Fire and forget - don't await, let it run in background
       sendLoginOTPEmail(payload)
         .then((result) => {
-          console.log("Login OTP email sent successfully:", result);
+          logger.info("Login OTP email sent successfully", { email: user.email });
         })
         .catch((error) => {
           console.error("Failed to send login OTP email (non-blocking):", error.message);
@@ -371,7 +378,7 @@ const sendOTP = async (identifier, purpose, identifierType = "PHONE", user) => {
 
     return { success: true, message: "OTP sent successfully" };
   } catch (error) {
-    console.log("sendOTP error:", error);
+    logger.error("sendOTP service error", { error: error.message });
     return {
       success: false,
       message: "OTP sending failed",
@@ -381,7 +388,7 @@ const sendOTP = async (identifier, purpose, identifierType = "PHONE", user) => {
 };
 
 // Verify OTP
-const verifyOTP = async (identifier, otp, purpose, identifierType, role) => {
+const verifyOTP = async (identifier, otp, purpose, identifierType, role, referralCode) => {
   try {
     const otpDoc = await OTP.findOne({
       identifier,
@@ -466,6 +473,16 @@ const verifyOTP = async (identifier, otp, purpose, identifierType, role) => {
       }
       console.log("Implicit registration successful:", registerResult);
       
+      // Apply referral code if provided
+      if (referralCode && expectedRole === 'DRIVER') {
+        try {
+          const incentiveService = require("./incentive.service");
+          await incentiveService.applyReferralCode(user.userId, referralCode);
+        } catch (err) {
+          console.error("Failed to apply referral code during implicit registration:", err);
+        }
+      }
+
       // Refetch the newly created user
       user = await User.findOne(query);
       if (!user) {
@@ -507,6 +524,16 @@ const verifyOTP = async (identifier, otp, purpose, identifierType, role) => {
         console.log("Creating missing Driver profile for user...");
         await createRoleSpecificProfile(user);
       }
+
+      // If user was referred via the manual "apply-referral" endpoint or flow later, or if it was provided now
+      if (referralCode && !user.referredBy) {
+        try {
+          const incentiveService = require("./incentive.service");
+          await incentiveService.applyReferralCode(user.userId, referralCode);
+        } catch (err) {
+          console.error("Failed to apply referral code during verification:", err);
+        }
+      }
     } else if (expectedRole === "USER") {
       const consumerProfile = await Consumer.findOne({ userId: user.userId });
       if (!consumerProfile) {
@@ -524,7 +551,7 @@ const verifyOTP = async (identifier, otp, purpose, identifierType, role) => {
 
     return { message: "OTP verified successfully", data: verifyResult };
   } catch (error) {
-    console.log("verifyOTP error:", error);
+    logger.error("verifyOTP service error", { error: error.message });
     return { message: "OTP verification failed", error: error?.message };
   }
 };
@@ -697,7 +724,7 @@ const updateUserProfile = async (updateData, profileImageFile) => {
       data: user,
     };
   } catch (error) {
-    console.log("updateUserProfile error:", error);
+    logger.error("updateUserProfile service error", { error: error.message });
     return {
       success: false,
       message: "Profile update failed",

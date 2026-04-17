@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/user.model");
 const { Session } = require("../models/otp.model");
+const logger = require("../utils/logger");
 require("dotenv").config();
 
 const httpStatusCode = require("../constants/httpStatusCode");
@@ -71,7 +72,7 @@ async function verifyToken(req, res, next) {
 
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log("Decoded token payload:", decoded);
+    logger.debug("Decoded token payload", { userId: decoded.userId, role: decoded.role });
 
 
     // Find user and check if still exists and is active
@@ -95,12 +96,13 @@ async function verifyToken(req, res, next) {
       });
     }
 
-    console.log("Decoded token:", decoded);
-    console.log("Token issued at (iat):", new Date(decoded.iat * 1000));
-    console.log("Token expires at (exp):", new Date(decoded.exp * 1000));
-    console.log("Current time:", new Date());
-    console.log("User found:", user);
-    console.log("token:", token);
+    logger.debug("Token Verification Success", { 
+      userId: decoded.userId,
+      iat: new Date(decoded.iat * 1000),
+      exp: new Date(decoded.exp * 1000)
+    });
+    // Sanitize user object for logging
+    logger.debug("User found", { user: logger.sanitize(user) });
     // Check if session is still valid (optional - for stricter security)
     const session = await Session.findOne({
       userId: decoded.userId,
@@ -129,7 +131,7 @@ async function verifyToken(req, res, next) {
 
     next();
   } catch (error) {
-    console.error("Error verifying token:", error);
+    logger.error("Error verifying token", { error: error.message });
 
     if (error.name === "JsonWebTokenError") {
       return res.status(httpStatusCode.UNAUTHORIZED).json({
@@ -165,7 +167,7 @@ const VerifyTokenThroughSocket = async (authToken) => {
 
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log("Decoded token payload:", decoded);
+    logger.debug("Decoded socket token payload", { userId: decoded.userId });
 
 
     // Find user and check if still exists and is active
@@ -189,12 +191,11 @@ const VerifyTokenThroughSocket = async (authToken) => {
       };
     }
 
-    console.log("Decoded token:", decoded);
-    console.log("Token issued at (iat):", new Date(decoded.iat * 1000));
-    console.log("Token expires at (exp):", new Date(decoded.exp * 1000));
-    console.log("Current time:", new Date());
-    console.log("User found:", user);
-    console.log("token:", token);
+    logger.debug("Socket Token Verification Status", { 
+      userId: decoded.userId,
+      iat: new Date(decoded.iat * 1000)
+    });
+    logger.debug("Socket User found", { user: logger.sanitize(user) });
     // Check if session is still valid (optional - for stricter security)
     const session = await Session.findOne({
       userId: decoded.userId,
@@ -224,7 +225,7 @@ const VerifyTokenThroughSocket = async (authToken) => {
       },
     };
   } catch (error) {
-    console.error("Error verifying token:", error);
+    logger.error("Error verifying socket token", { error: error.message });
     return {
       success: false,
       message: "Unauthorized: Invalid token",
@@ -341,11 +342,7 @@ async function optionalAuth(req, res, next) {
 // Generate JWT tokens
 const generateTokens = async (payload) => {
   try {
-    console.log("Generating tokens with payload:", payload);
-    console.log("JWT_SECRET:", process.env.JWT_SECRET);
-    console.log("JWT_REFRESH_SECRET:", process.env.JWT_REFRESH_SECRET);
-    console.log("JWT_ACCESS_EXPIRES_IN:", process.env.JWT_ACCESS_EXPIRES_IN);
-    console.log("JWT_REFRESH_EXPIRES_IN:", process.env.JWT_REFRESH_EXPIRES_IN);
+    logger.debug("Generating tokens for user", { userId: payload.userId });
     const accessToken = await jwt.sign(payload, process.env.JWT_SECRET, {
       expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || "15m",
     });
@@ -357,8 +354,6 @@ const generateTokens = async (payload) => {
         expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
       }
     );
-    console.log("Generated accessToken:", accessToken);
-    console.log("Generated refreshToken:", refreshToken);
     const tokens = { accessToken, refreshToken };
     return tokens;
   } catch (error) {

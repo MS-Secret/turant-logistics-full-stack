@@ -8,7 +8,8 @@ const {
   GetNearbyDrivers,
   SendRideRequestToDrivers,
   CompleteRideByDriver,
-  ResetDailyEarnings
+  ResetDailyEarnings,
+  GetDriverDashboardData
 } = require("../services/driver.service");
 const driverService = require("../services/driver.service");
 
@@ -415,6 +416,32 @@ const handleDeleteDriver = async (req, res) => {
   }
 };
 
+const handleGetDriverDashboard = async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(httpStatusCode.UNAUTHORIZED).json({
+        success: false,
+        message: "User authentication required"
+      });
+    }
+
+    const result = await GetDriverDashboardData(userId);
+    if (result.success) {
+      return res.status(httpStatusCode.OK).json(result);
+    } else {
+      return res.status(httpStatusCode.BAD_REQUEST).json(result);
+    }
+  } catch (error) {
+    logger.error("Error in handleGetDriverDashboard", { error: error.message });
+    return res.status(httpStatusCode.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "An error occurred while fetching dashboard data",
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   handleGetDriverList,
   handleGetDriverDetails,
@@ -429,5 +456,6 @@ module.exports = {
   CreateDriverDetails,
   handleBlockDriver,
   handleUnblockDriver,
-  handleDeleteDriver
+  handleDeleteDriver,
+  handleGetDriverDashboard,
 };
