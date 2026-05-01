@@ -13,6 +13,7 @@ const cloudinary = require("../config/cloudinaryConfig");
 const { sendSMS } = require("./smsService/sms.processor");
 const { GetKycDetails } = require("./kyc.service");
 const logger = require("../utils/logger");
+const crypto = require("crypto");
 
 // Register user
 const register = async (userData, skipOTP = false) => {
@@ -63,12 +64,12 @@ const register = async (userData, skipOTP = false) => {
   const userId = generateUserId(role);
   logger.debug("Generated userId", { userId });
 
-  // Create user
+  // Create user with a random secure password for OTP-based accounts
   const user = new User({
     userId,
     email,
     phone,
-    password: password || "123456",
+    password: password || crypto.randomBytes(20).toString('hex'),
     role,
     username: userName || `${userName}_${Date.now()}`,
   });
@@ -462,8 +463,7 @@ const verifyOTP = async (identifier, otp, purpose, identifierType, role, referra
         phone: identifierType === 'PHONE' ? identifier : undefined,
         email: identifierType === 'EMAIL' ? identifier : undefined,
         role: expectedRole,
-        userName: `User_${identifier.slice(-4)}_${Date.now()}`, // Generate unique username
-        password: "123456", // Default password since we use OTP
+        userName: `User_${identifier.slice(-4)}_${Date.now()}`, 
       };
 
       // Pass skipOTP = true since they are already verifying their login OTP
@@ -473,6 +473,12 @@ const verifyOTP = async (identifier, otp, purpose, identifierType, role, referra
       }
       console.log("Implicit registration successful:", registerResult);
       
+      // Refetch the newly created user BEFORE applying referral code
+      user = await User.findOne(query);
+      if (!user) {
+        throw new Error("Failed to retrieve newly registered user");
+      }
+
       // Apply referral code if provided
       if (referralCode && expectedRole === 'DRIVER') {
         try {
@@ -481,12 +487,6 @@ const verifyOTP = async (identifier, otp, purpose, identifierType, role, referra
         } catch (err) {
           console.error("Failed to apply referral code during implicit registration:", err);
         }
-      }
-
-      // Refetch the newly created user
-      user = await User.findOne(query);
-      if (!user) {
-        throw new Error("Failed to retrieve newly registered user");
       }
     } else if (user.isDeleted) {
       // Reactivate soft-deleted user found via direct query
@@ -545,8 +545,9 @@ const verifyOTP = async (identifier, otp, purpose, identifierType, role, referra
     // CRITICAL FIX: Use the user we found/created (with correct role) instead of calling login with identifier
     // This ensures we login with the correct role user, not any other user with same phone
     let verifyResult;
-    // Call login with identifier BUT also pass role to ensure correct user is found
-    verifyResult = await login(identifier, "123456", {}, expectedRole);
+    // CRITICAL FIX: Pass null as password because the user is already verified via OTP
+    // This allows us to use secure random passwords for OTP users.
+    verifyResult = await login(identifier, null, {}, expectedRole);
     console.log("verifyResult:", verifyResult);
 
     return { message: "OTP verified successfully", data: verifyResult };

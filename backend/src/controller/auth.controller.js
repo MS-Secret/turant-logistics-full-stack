@@ -54,9 +54,15 @@ const login = async (req, res) => {
     };
 
     const result = await authService.login(identifier, password, deviceInfo);
-    // if (!result?.success) {
-    //   return res.status(401).json(result);
-    // }
+
+    // Check if login service returned an error
+    if (result?.error || !result?.user) {
+      return res.status(401).json({
+        success: false,
+        message: result?.error || result?.message || "Invalid credentials",
+      });
+    }
+
     return res.status(200).json({
       success: true,
       message: "Login successful",
@@ -109,6 +115,13 @@ const verifyOTP = async (req, res) => {
       role,
       referralCode
     );
+
+    if (result?.error) {
+      return res.status(httpStatusCode.BAD_REQUEST).json({
+        success: false,
+        message: result.error,
+      });
+    }
 
     return res.status(httpStatusCode.OK).json({
       success: true,

@@ -35,7 +35,7 @@ const UserSchema = createBaseSchema({
     type: String,
     required: false,
     minlength: 6,
-    select: false // Don't include password in queries by default
+    select: false 
   },
   role: {
     type: String,

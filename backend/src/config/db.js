@@ -1,17 +1,30 @@
 const mongoose = require("mongoose");
+const logger = require("../utils/logger");
 
-const dbConnection = (url) => {
-  mongoose.connect(url, {
-   
-  });
+const dbConnection = async (url) => {
+  try {
+    await mongoose.connect(url, {
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+    });
+    logger.info("MongoDB connected successfully");
+  } catch (error) {
+    logger.error("MongoDB initial connection failed", { error: error.message });
+    process.exit(1); 
+  }
 
   const db = mongoose.connection;
 
   db.on("error", (error) => {
-    console.error("MongoDb connection error:", error);
+    logger.error("MongoDB connection error:", { error: error.message });
   });
-  db.once("open", () => {
-    console.log("MongoDB connected successfully");
+
+  db.on("disconnected", () => {
+    logger.warn("MongoDB disconnected. Mongoose will auto-reconnect...");
+  });
+
+  db.on("reconnected", () => {
+    logger.info("MongoDB reconnected successfully");
   });
 };
 

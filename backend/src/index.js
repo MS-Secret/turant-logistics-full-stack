@@ -153,15 +153,14 @@ app.use((error, req, res, next) => {
   });
 });
 
-//database connection
-dbConnection(MONGO_URL);
-
-//create default admin
-createDefaultAdmin();
-
 // Start the server
 async function startServer() {
   try {
+    // Connect to database FIRST — don't serve requests until DB is ready
+    await dbConnection(MONGO_URL);
+
+    // Create default admin after DB is ready
+    await createDefaultAdmin();
 
     // Start HTTP server
     server.listen(port, () => {
@@ -189,6 +188,19 @@ async function startServer() {
           logger.error("Error in scheduled ResetDailyEarnings:", err);
         }
       });
+
+      // Keep-alive self-ping to prevent free-tier hosting from sleeping
+      if (process.env.KEEP_ALIVE_URL) {
+        setInterval(async () => {
+          try {
+            const axios = require('axios');
+            await axios.get(`${process.env.KEEP_ALIVE_URL}/health`);
+            logger.debug('Keep-alive ping sent successfully');
+          } catch (err) {
+            logger.warn('Keep-alive ping failed', { error: err.message });
+          }
+        }, 14 * 60 * 1000); // Every 14 minutes (most free tiers sleep after 15)
+      }
 
     });
   } catch (error) {

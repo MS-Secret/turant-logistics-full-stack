@@ -36,7 +36,6 @@ const multer = require("multer");
 const upload = multer();
 
 // Use multer only when Content-Type is multipart/form-data
-// Use multer only when Content-Type is multipart/form-data
 const conditionalMulter = (fieldName) => (req, res, next) => {
   const contentType = req.headers["content-type"] || "";
   if (contentType.includes("multipart/form-data")) {
@@ -130,23 +129,23 @@ router.delete(
 
 
 // ==================== DRIVER HANDLING ====================
-router.get("/driver/dashboard", verifyToken, handleGetDriverDashboard);
-router.get("/driver/all", verifyToken, handleGetDriverList);
-router.get("/driver/active", verifyToken, handleActiveFindingDrivers);
-router.get("/driver/nearby", verifyToken, handleGetNearbyDrivers);
+router.get("/driver/dashboard", verifyToken, requireRole("ADMIN", "SUPER_ADMIN"), handleGetDriverDashboard);
+router.get("/driver/all", verifyToken, requireRole("ADMIN", "SUPER_ADMIN"), handleGetDriverList);
+router.get("/driver/active", verifyToken, requireRole("ADMIN", "SUPER_ADMIN"), handleActiveFindingDrivers);
+router.get("/driver/nearby", verifyToken, requireRole("ADMIN", "SUPER_ADMIN"), handleGetNearbyDrivers);
 router.post("/driver/update-location", verifyToken, handleUpdateCurrentLocation);
 router.post("/driver/status", verifyToken, handleUpdateDriverWorkingStatus);
 router.post("/driver/ride-request", verifyToken, handleSendRideRequest);
-router.get("/driver/:driverId", verifyToken, handleGetDriverDetails);
-router.post("/driver/kyc/:userId", verifyToken, handleUpdateDriverKycStatus);
-router.post("/driver/block/:userId", verifyToken, handleBlockDriver);
-router.post("/driver/unblock/:userId", verifyToken, handleUnblockDriver);
-router.delete("/driver/delete/:userId", verifyToken, handleDeleteDriver);
+router.get("/driver/:driverId", verifyToken, requireRole("ADMIN", "SUPER_ADMIN"), handleGetDriverDetails);
+router.post("/driver/kyc/:userId", verifyToken, requireRole("ADMIN", "SUPER_ADMIN"), handleUpdateDriverKycStatus);
+router.post("/driver/block/:userId", verifyToken, requireRole("ADMIN", "SUPER_ADMIN"), handleBlockDriver);
+router.post("/driver/unblock/:userId", verifyToken, requireRole("ADMIN", "SUPER_ADMIN"), handleUnblockDriver);
+router.delete("/driver/delete/:userId", verifyToken, requireRole("ADMIN", "SUPER_ADMIN"), handleDeleteDriver);
 
 // ==================== Consumer HANDLING ====================
-router.get("/consumer/all", verifyToken, handleGetConsumerList);
-router.get("/consumer/:consumerId", verifyToken, handleGetConsumerDetails);
-router.delete("/consumer/delete/:userId", verifyToken, handleDeleteConsumer);
+router.get("/consumer/all", verifyToken, requireRole("ADMIN", "SUPER_ADMIN"), handleGetConsumerList);
+router.get("/consumer/:consumerId", verifyToken, requireRole("ADMIN", "SUPER_ADMIN"), handleGetConsumerDetails);
+router.delete("/consumer/delete/:userId", verifyToken, requireRole("ADMIN", "SUPER_ADMIN"), handleDeleteConsumer);
 
 
 // 404 handler for auth routes
