@@ -320,7 +320,7 @@ const LoginMain = () => {
 
         {/* Footer */}
         <div className="text-center mt-6 text-sm text-gray-500">
-          <p>© 2025 Turant Logistics. All rights reserved.</p>
+          <p>© 2026 Turant Logistics. All rights reserved.</p>
         </div>
       </div>
     </div>
