@@ -9,6 +9,7 @@ const walletRoutes = require("./wallet.routes");
 const campaignRoutes = require("./campaign.routes");
 const adminRoutes = require("./admin.routes");
 const incentiveRoutes = require("./incentive.routes");
+const webhookRoutes = require("./webhook.routes");
 
 Router.use("/auth", authRoutes);
 Router.use("/kyc", kycRoutes);
@@ -20,6 +21,7 @@ Router.use("/notification", notificationRoutes);
 Router.use("/wallet", walletRoutes);
 Router.use("/campaigns", campaignRoutes);
 Router.use("/incentive", incentiveRoutes);
+Router.use("/webhooks", webhookRoutes);
 
 // 404 handler for auth routes
 Router.all("*", (req, res) => {

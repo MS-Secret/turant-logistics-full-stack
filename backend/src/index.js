@@ -69,7 +69,11 @@ app.use(limiter);
 
 // Body parsing
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json());
+app.use(bodyParser.json({
+  verify: (req, res, buf) => {
+    req.rawBody = buf.toString();
+  }
+}));
 app.use(cookieParser());
 
 
