@@ -1,0 +1,76 @@
+name: turant-logistics
+
+services:
+  # Backend Service
+  turant-backend:
+    build:
+      context: ../backend
+      dockerfile: ../deployment/dockerfiles/Dockerfile.backend
+    image: ${APP_NAME}-backend
+    container_name: ${APP_NAME}-backend
+    environment:
+      - PORT=3000
+    env_file:
+      - .env
+    ports:
+      - "${BACKEND_HOST_PORT:-9031}:${PORT:-3000}"
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "const net=require('net');const port=parseInt(process.env.PORT||'3000',10);const client=net.connect({host:'127.0.0.1',port},()=>{client.end();process.exit(0);});client.on('error',()=>process.exit(1));"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # admin Service
+  turant-admin:
+    build:
+      context: ../admin
+      dockerfile: ../deployment/dockerfiles/Dockerfile.admin
+      args:
+        - NODE_ENV=production
+    environment:
+      - PORT=3000
+    image: ${APP_NAME}-admin
+    container_name: ${APP_NAME}-admin
+    restart: unless-stopped
+    ports:
+      - "${ADMIN_HOST_PORT:-9032}:${PORT:-3000}"
+    env_file:
+      - .env
+    networks:
+      - app-network
+    depends_on:
+      - turant-backend
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "const net=require('net');const port=parseInt(process.env.PORT||'3000',10);const client=net.connect({host:'127.0.0.1',port},()=>{client.end();process.exit(0);});client.on('error',()=>process.exit(1));"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+# # Redis Service
+#   turant-redis:
+#     image: redis:latest
+#     container_name: turant-redis-${APP_NAME}
+#     expose:
+#       - "6379"
+#     networks:
+#       - turant-network
+#     restart: unless-stopped
+
+# Networks
+networks:
+  app-network:
+    name: ${APP_NAME}-network
+    driver: bridge

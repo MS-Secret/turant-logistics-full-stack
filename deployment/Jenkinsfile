@@ -1,0 +1,243 @@
+pipeline {
+    agent any
+    
+    environment {
+        SERVER_IP = '13.203.247.219' // IP address of the server
+        SSH_USERNAME = 'ubuntu' // SSH username for the server
+        DOCKER_TAG = "${BUILD_NUMBER}"
+        APP_DIR = "/home" // Directory where the application is stored on the server
+        APP_NAME = "turant-full-stack" // Name of the APP_NAME as in the .env file and in env make this as same as its folder name
+        REMOTE_DIR = "${APP_DIR}/${APP_NAME}"
+        FRONTEND_DIR = "${REMOTE_DIR}/admin"
+        BACKEND_DIR = "${REMOTE_DIR}/backend"
+        DEPLOY_DIR = "${REMOTE_DIR}/deployment" // Directory where the application is deployed on the server
+        ENV_FILE = "${REMOTE_DIR}/.env" // Path to the .env file on the server Only use if applicable and setup into the server
+        DEPLOY_TIMEOUT = '30000' // 50 minutes timeout for deployment
+        HEALTH_CHECK_RETRIES = '5'
+        HEALTH_CHECK_INTERVAL = '10'
+        BACKEND_HEALTHCHECK_PATH = '/health'
+        FRONTEND_HEALTHCHECK_PATH = '/'
+    }
+    
+    stages {
+
+        stage('Deploy to Production') {
+            steps {
+                timeout(time: env.DEPLOY_TIMEOUT.toInteger(), unit: 'SECONDS') {
+                    script {
+                        try {
+                            echo "Cleaning up previous deployment artifacts..."
+                            sh "rm -f deploy.tar.gz || true"
+                            
+                            echo "Copying deployment files to server..."
+                            sh '''
+                                # Clean any existing archives
+                                rm -f deploy.tar.gz || true
+                                
+                                # Create a list of files to include
+                                echo "Creating file list..."
+                                find . -type f \
+                                    ! -path "./node_modules/*" \
+                                    ! -path "./.git/*" \
+                                    ! -path "./deploy.tar.gz" \
+                                    ! -name "*.log" \
+                                    ! -name "*.tmp" \
+                                    ! -path "./.next/cache/*" \
+                                    > files_to_include.txt
+
+                                # Show what we're going to package
+                                echo "Files to be included:"
+
+                                echo "Creating deployment package from workspace..."
+                                tar czf deploy.tar.gz --no-recursion --files-from files_to_include.txt || {
+                                    echo "Failed to create tar archive"
+                                    rm -f files_to_include.txt
+                                    exit 1
+                                }
+
+                                # Cleanup file list
+                                rm -f files_to_include.txt
+
+                                # Verify tar was created successfully and check size
+                                if [ ! -f deploy.tar.gz ]; then
+                                    echo "Failed to create deployment package!"
+                                    exit 1
+                                fi
+                                echo "Deployment package created successfully"
+
+                                # Check tar file size
+                                echo "Checking archive size..."
+
+                                # Test the archive
+                                echo "Testing archive integrity..."
+                                
+                                tar tzf deploy.tar.gz > /dev/null 2>&1 || {
+                                    echo "Archive integrity test failed!"
+                                    exit 1
+                                }
+                                 
+
+                                echo "Archive created and verified successfully"
+
+                                # Generate checksum for the deployment package
+                                echo "Generating checksum for deployment package..."
+                                CHECKSUM=$(sha256sum deploy.tar.gz | awk '{print $1}')
+                                echo "$CHECKSUM" | tee deploy.tar.gz.sha256
+                                echo "Generated checksum: $CHECKSUM"
+                            '''
+
+                            sh """
+                                echo "Starting deployment to remote server..."
+                                
+                                # Prepare remote directory quietly
+                                ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${SSH_USERNAME}@${SERVER_IP} "sudo rm -rf ${REMOTE_DIR}/* > /dev/null 2>&1"
+                                ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${SSH_USERNAME}@${SERVER_IP} "sudo mkdir -p ${REMOTE_DIR} > /dev/null 2>&1 && sudo chown ${SSH_USERNAME}:${SSH_USERNAME} ${REMOTE_DIR}"
+                                
+                                # Copy files quietly
+                                echo "Copying deployment files..."
+                                scp -q -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa deploy.tar.gz deploy.tar.gz.sha256 ${SSH_USERNAME}@${SERVER_IP}:${REMOTE_DIR}
+                                
+                                # Execute deployment
+                                ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${SSH_USERNAME}@${SERVER_IP} "HEALTH_CHECK_RETRIES=${HEALTH_CHECK_RETRIES} HEALTH_CHECK_INTERVAL=${HEALTH_CHECK_INTERVAL} BACKEND_HEALTHCHECK_PATH='${BACKEND_HEALTHCHECK_PATH}' FRONTEND_HEALTHCHECK_PATH='${FRONTEND_HEALTHCHECK_PATH}' bash -s" << 'ENDSSH'
+                                    set -e
+                                    cd ${REMOTE_DIR}
+                                    
+                                    # Extract quietly
+                                    tar xzf deploy.tar.gz > /dev/null 2>&1
+                                    rm -f deploy.tar.gz deploy.tar.gz.sha256 files_to_include.txt > /dev/null 2>&1
+
+
+                                    ######################################################################################################################################################
+                                    ####################### Environment Variables Setup, Don't change if you don't know, what you are doing actually below ################################################################################################
+                                    ###############################################################################################################################################
+                                    if [ -f "${ENV_FILE}" ]; then
+                                        cp -r "${ENV_FILE}" "${DEPLOY_DIR}/.env"
+                                    else
+                                        echo "Error: .env file missing in server at ${ENV_FILE}"
+                                    fi
+                                    # Ensure .env exists
+                                    if [ ! -f "${DEPLOY_DIR}/.env" ]; then
+                                        echo "Error: .env file missing at ${DEPLOY_DIR}/.env"
+                                        echo "Please ensure the .env file is present in the deployment directory or add directly to the server at ${ENV_FILE}"
+                                        exit 1
+                                    fi
+                                    cp -r "${DEPLOY_DIR}/.env" "${BACKEND_DIR}/.env"
+                                    if [ ! -f "${BACKEND_DIR}/.env" ]; then
+                                        echo "Error: .env file missing in DEV remote dir root ${REMOTE_DIR}/backend/.env"
+                                        exit 1
+                                    fi
+                                    cp -r "${DEPLOY_DIR}/.env" "${FRONTEND_DIR}/.env"
+                                    if [ ! -f "${FRONTEND_DIR}/.env" ]; then
+                                        echo "Error: .env file missing in DEV remote dir root ${REMOTE_DIR}/frontend/.env"
+                                        exit 1
+                                    fi
+
+                                    ######################################################################################################################################################
+                                    ####################### Cross checking files Environment Variables Setup, Don't change if you don't know, what you are doing actually above ################################################################################################
+                                    ###############################################################################################################################################
+                                    echo "Here is the present working directory and the files in it"
+                                    cd ${FRONTEND_DIR}
+                                    pwd && ls -la
+
+                                    cd ${BACKEND_DIR}
+                                    pwd && ls -la
+
+                                    ######################################################################################################################################################
+                                    ####################### Environment Variables Setup, Don't change if you don't know, what you are doing actually above ################################################################################################
+                                    ###############################################################################################################################################
+                                    sudo -E docker image prune -af
+                                    sudo -E docker volume prune -f
+                                    sudo docker system prune -f
+
+                                    echo "✓ Cleanup successful"
+                                    
+                                    cd ${DEPLOY_DIR}
+                                    echo " the present working directory and the files in it"
+                                    pwd && ls -la
+                                    
+                                    echo "Checking if docker-compose.yml exists"
+                                    if [ ! -f "docker-compose.yml" ]; then
+                                        echo "Error: docker-compose.yml not found!"
+                                        exit 1
+                                    fi
+                                    
+                                    # Get deployment color
+                                    CURRENT_COLOR=\$(sudo docker ps --filter name=${APP_NAME}- --format '{{.Names}}' | grep -oE 'blue|green' | head -n1)
+                                    CURRENT_COLOR=\${CURRENT_COLOR:-blue}
+                                    NEW_COLOR=\$([ "\$CURRENT_COLOR" = "blue" ] && echo "green" || echo "blue")
+                                    
+                                    echo "Deploying version ${BUILD_NUMBER} (\$NEW_COLOR) of ${APP_NAME}"
+                                    
+                                    # Export variables
+                                    export COLOR="\$NEW_COLOR"
+                                    export TAG="${BUILD_NUMBER}"
+
+                                    # Build and deploy with optimizations
+                                    echo "Building new images for ${APP_NAME} ${BUILD_NUMBER} (\$NEW_COLOR)" 
+                                    sudo -E docker compose build --parallel --force-rm --no-cache
+                                    echo "Starting new containers..for ${APP_NAME} ${BUILD_NUMBER} (\$NEW_COLOR)"
+                                    sudo -E docker compose up -d --force-recreate --renew-anon-volumes
+                                    echo "✓ Deployment successful - ${APP_NAME} Version ${BUILD_NUMBER} (\$NEW_COLOR) passed health verification"
+
+ENDSSH
+                            """
+                        } catch (Exception e) {
+                            echo "Deployment failed: ${e.getMessage()}"
+                            currentBuild.result = 'FAILURE'
+                            throw e
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            script {
+                def status = currentBuild.result ?: 'SUCCESS'
+                def color = status == 'SUCCESS' ? 'green' : 'red'
+                
+                echo "Pipeline finished with status: ${status}"
+                FROM_EMAIL = 'mithilastackclient@gmail.com'
+                
+                emailext(
+                    subject: "[$status] Pipeline: ${currentBuild.fullDisplayName}",
+                    body: """
+                        <html>
+                        <body style="font-family: Arial, sans-serif;">
+                            <div style="background-color: ${color}; color: white; padding: 10px; text-align: center;">
+                                <h2>Build ${BUILD_NUMBER} - ${status}</h2>
+                            </div>
+                            <div style="padding: 20px;">
+                                <p><strong>Build URL:</strong> <a href="${BUILD_URL}">${BUILD_URL}</a></p>
+                                <p><strong> Use the given credentials to access jenkins server: User id: team_mithilastack and Password: team_Mithilastack@12112024</strong></p>
+                                <p><strong>Changes:</strong></p>
+                                <pre>${currentBuild.changeSets}</pre>
+                                <p><strong>Console Output:</strong> Check build page for details</p>
+                            </div>
+                            <div style="background-color: #f0f0f0; padding: 10px; text-align: center;">
+                                <p>Mithilastack DevOps Team</p>
+                            </div>
+                        </body>
+                        </html>
+                    """,
+                    to: 'arpitsrivastava54@gmail.com',
+                    from: 'mithilastackclient@gmail.com',
+                    replyTo: 'mithilastackclient@gmail.com',
+                    mimeType: 'text/html'
+                )
+                
+                echo "Notification email sent"
+            }
+        }
+        
+        success {
+            echo "Pipeline completed successfully! All stages passed."
+        }
+
+        failure {
+            echo "Pipeline failed! Please check the logs for details."
+        }
+    }
+}

@@ -1,0 +1,51 @@
+
+##########################################################################################################################################################################################################
+################## DOCKERFILE FOR NODE JS APPLICATIONS (API) #######################################################################################################################################################################
+##########################################################################################################################################################################################################
+
+# Step 1: Build Stage
+FROM node:20-alpine AS builder
+
+# Install necessary build tools and glibc compatibility
+RUN apk add --no-cache python3 make g++ bash libc6-compat
+
+# Install node-pre-gyp globally
+RUN npm install -g node-pre-gyp
+
+WORKDIR /app
+
+# Install dependencies first for better layer caching
+
+# Copy the rest of the backend source
+COPY . .
+
+# Install dependencies
+RUN npm install
+
+# Rebuild bcrypt for Alpine
+RUN npm rebuild bcrypt --build-from-source
+
+
+
+# Remove development dependencies before shipping to the runtime image
+RUN npm prune --omit=dev
+
+
+# Step 2: Final Stage
+FROM node:20-alpine
+
+# Install glibc compatibility in the final stage
+RUN apk add --no-cache libc6-compat
+
+WORKDIR /app
+
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+
+COPY --from=builder /app . .
+EXPOSE ${PORT:-3000}
+
+CMD ["node", "src/index.js"]
+
+
+#############################################  END   #####################################################################
