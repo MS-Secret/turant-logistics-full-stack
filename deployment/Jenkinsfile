@@ -5,9 +5,9 @@ pipeline {
         SERVER_IP = '13.203.247.219' // IP address of the server
         SSH_USERNAME = 'ubuntu' // SSH username for the server
         DOCKER_TAG = "${BUILD_NUMBER}"
-        APP_DIR = "/home" // Directory where the application is stored on the server
+        // APP_DIR = "turant-logistics" // Directory where the application is stored on the server
         APP_NAME = "turant-logistics" // Name of the APP_NAME as in the .env file and in env make this as same as its folder name
-        REMOTE_DIR = "${APP_DIR}/${APP_NAME}"
+        REMOTE_DIR = "/home/${SSH_USERNAME}/${APP_NAME}" // Base directory for deployment on the server
         FRONTEND_DIR = "${REMOTE_DIR}/admin"
         BACKEND_DIR = "${REMOTE_DIR}/backend"
         DEPLOY_DIR = "${REMOTE_DIR}/deployment" // Directory where the application is deployed on the server
