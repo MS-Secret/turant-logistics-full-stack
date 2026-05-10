@@ -6,7 +6,7 @@ pipeline {
         SSH_USERNAME = 'ubuntu' // SSH username for the server
         DOCKER_TAG = "${BUILD_NUMBER}"
         APP_DIR = "/home" // Directory where the application is stored on the server
-        APP_NAME = "turant-full-stack" // Name of the APP_NAME as in the .env file and in env make this as same as its folder name
+        APP_NAME = "turant-logistics" // Name of the APP_NAME as in the .env file and in env make this as same as its folder name
         REMOTE_DIR = "${APP_DIR}/${APP_NAME}"
         FRONTEND_DIR = "${REMOTE_DIR}/admin"
         BACKEND_DIR = "${REMOTE_DIR}/backend"
